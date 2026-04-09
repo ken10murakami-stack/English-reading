@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>英語長文 Selection System</title>
+    <style>
+        :root { --primary: #3498db; --success: #27ae60; --error: #e74c3c; --bg: #f4f7f6; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        
+        /* ホーム画面のデザイン */
+        .home-screen { text-align: center; }
+        .filter-group { margin: 20px 0; display: flex; flex-direction: column; gap: 15px; align-items: center; }
+        select { padding: 10px; width: 250px; border-radius: 5px; border: 1px solid #ddd; font-size: 1rem; }
+        .start-btn { background: var(--success); color: white; padding: 15px 40px; font-size: 1.2rem; border: none; border-radius: 30px; cursor: pointer; transition: 0.3s; }
+        .start-btn:hover { transform: scale(1.05); }
+
+        /* 問題画面のデザイン */
+        .game-screen { display: none; }
+        .question-text { font-size: 1.25rem; line-height: 2.5; margin-bottom: 30px; padding: 20px; border: 1px solid #eee; border-radius: 10px; min-height: 100px; }
+        .drop-zone { display: inline-block; min-width: 80px; height: 1.8rem; border-bottom: 2px solid var(--primary); margin: 0 5px; vertical-align: middle; text-align: center; }
+        .drop-zone.correct { border-bottom-color: var(--success); color: var(--success); font-weight: bold; }
+        .word-bank { display: flex; flex-wrap: wrap; gap: 10px; padding: 20px; background: #f1f3f5; border-radius: 10px; min-height: 60px; justify-content: center; }
+        .word-chip { padding: 5px 15px; background: white; border: 1px solid #ddd; border-radius: 20px; cursor: grab; }
+        
+        .controls { text-align: center; margin-top: 30px; }
+        button { padding: 10px 25px; border-radius: 5px; border: none; cursor: pointer; }
+        .btn-check { background: var(--primary); color: white; }
+        .btn-back { background: #95a5a6; color: white; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="home-screen" class="home-screen">
+        <h1>English Reading App</h1>
+        <p>学習したい「文法」と「レベル」を選んでください</p>
+        
+        <div class="filter-group">
+            <select id="grammar-select">
+                <option value="all">すべての文法</option>
+            </select>
+            <select id="level-select">
+                <option value="all">すべてのレベル</option>
+            </select>
+            <button class="start-btn" onclick="startLesson()">学習をはじめる</button>
+        </div>
+        <div id="status-msg"></div>
+    </div>
+
+    <div id="game-screen" class="game-screen">
+        <div id="question-info" style="color:#666; margin-bottom:10px;"></div>
+        <div id="question-area" class="question-text"></div>
+        <div id="word-bank" class="word-bank"></div>
+        
+        <div class="controls">
+            <div id="game-msg"></div>
+            <button class="btn-check" onclick="checkAnswers()">答え合わせ</button><br>
+            <button class="btn-back" onclick="showHome()">ホームに戻る</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = 'https://script.google.com/macros/s/AKfycby1jXDHVarBS3MhXt8glWF673WZzVolyNYS39k0UEq4x7USbsG_tiIublX6PRcrSzYU/exec';
+    let allQuestions = [];
+    let filteredQuestions = [];
+    let currentData = null;
+    let draggedElement = null;
+
+    // 最初にデータを読み込み、セレクトボックスを初期化
+    async function init() {
+        try {
+            const res = await fetch(API_URL);
+            allQuestions = await res.json();
+            
+            // セレクトボックスの選択肢を自動生成
+            populateSelect('grammar-select', 'grammar');
+            populateSelect('level-select', 'level');
+            document.getElementById('status-msg').innerText = "準備完了！";
+        } catch (e) {
+            document.getElementById('status-msg').innerText = "データの取得に失敗しました。";
+        }
+    }
+
+    function populateSelect(elementId, key) {
+        const select = document.getElementById(elementId);
+        const values = [...new Set(allQuestions.map(q => q[key]))]; // 重複削除
+        values.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v;
+            opt.innerText = v;
+            select.appendChild(opt);
+        });
+    }
+
+    // 学習開始
+    function startLesson() {
+        const grammar = document.getElementById('grammar-select').value;
+        const level = document.getElementById('level-select').value;
+
+        filteredQuestions = allQuestions.filter(q => {
+            const gMatch = (grammar === 'all' || q.grammar === grammar);
+            const lMatch = (level === 'all' || q.level === level);
+            return gMatch && lMatch;
+        });
+
+        if (filteredQuestions.length === 0) {
+            alert("該当する問題がありません！");
+            return;
+        }
+
+        document.getElementById('home-screen').style.display = 'none';
+        document.getElementById('game-screen').style.display = 'block';
+        loadNextQuestion();
+    }
+
+    function loadNextQuestion() {
+        currentData = filteredQuestions[Math.floor(Math.random() * filteredQuestions.length)];
+        document.getElementById('question-info').innerText = `ターゲット: ${currentData.grammar} [${currentData.level}]`;
+        renderQuestion(currentData);
+    }
+
+    function renderQuestion(item) {
+        const qArea = document.getElementById('question-area');
+        const bank = document.getElementById('word-bank');
+        bank.innerHTML = "";
+        document.getElementById('game-msg').innerText = "";
+        
+        // 本文描画
+        qArea.innerHTML = item.text.replace(/[\(（](\d+)[\)）]/g, (m, n) => {
+            return `<span class="drop-zone" id="zone-${n}" data-ans-num="${n}"></span>`;
+        });
+
+        // 語群描画
+        let words = [];
+        for(let i=1; i<=10; i++) if(item['ans'+i]) words.push(item['ans'+i]);
+        words.sort(() => Math.random() - 0.5);
+
+        words.forEach(word => {
+            const chip = document.createElement('div');
+            chip.className = 'word-chip';
+            chip.draggable = true;
+            chip.innerText = word;
+            chip.addEventListener('dragstart', e => { draggedElement = chip; });
+            bank.appendChild(chip);
+        });
+
+        setupDropZones();
+    }
+
+    function setupDropZones() {
+        const zones = document.querySelectorAll('.drop-zone');
+        zones.forEach(zone => {
+            zone.addEventListener('dragover', e => e.preventDefault());
+            zone.addEventListener('drop', e => {
+                e.preventDefault();
+                if(zone.firstChild) document.getElementById('word-bank').appendChild(zone.firstChild);
+                zone.appendChild(draggedElement);
+            });
+        });
+    }
+
+    function checkAnswers() {
+        const zones = document.querySelectorAll('.drop-zone');
+        let allCorrect = true;
+
+        zones.forEach(zone => {
+            if(!zone.firstChild) { allCorrect = false; return; }
+            const num = zone.dataset.ansNum;
+            const isCorrect = zone.innerText.trim().toLowerCase() === currentData['ans'+num].toString().trim().toLowerCase();
+            
+            if(isCorrect) {
+                zone.className = 'drop-zone correct';
+                zone.firstChild.draggable = false;
+            } else {
+                setTimeout(() => {
+                    if(zone.firstChild) document.getElementById('word-bank').appendChild(zone.firstChild);
+                    zone.className = 'drop-zone';
+                }, 800);
+                allCorrect = false;
+            }
+        });
+
+        if(allCorrect) {
+            document.getElementById('game-msg').innerHTML = "<span style='color:green;'>🎉 正解！3秒後に次の問題へ...</span>";
+            setTimeout(loadNextQuestion, 3000);
+        }
+    }
+
+    function showHome() {
+        document.getElementById('home-screen').style.display = 'block';
+        document.getElementById('game-screen').style.display = 'none';
+    }
+
+    init();
+</script>
+</body>
+</html>
