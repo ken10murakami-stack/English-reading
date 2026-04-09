@@ -3,31 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>英語長文 Selection System</title>
+    <title>英語長文 Selection & DragDrop</title>
     <style>
         :root { --primary: #3498db; --success: #27ae60; --error: #e74c3c; --bg: #f4f7f6; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; }
         .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         
-        /* ホーム画面のデザイン */
+        /* ホーム画面 */
         .home-screen { text-align: center; }
         .filter-group { margin: 20px 0; display: flex; flex-direction: column; gap: 15px; align-items: center; }
-        select { padding: 10px; width: 250px; border-radius: 5px; border: 1px solid #ddd; font-size: 1rem; }
-        .start-btn { background: var(--success); color: white; padding: 15px 40px; font-size: 1.2rem; border: none; border-radius: 30px; cursor: pointer; transition: 0.3s; }
-        .start-btn:hover { transform: scale(1.05); }
+        select { padding: 12px; width: 280px; border-radius: 8px; border: 1px solid #ddd; font-size: 1rem; appearance: none; background: white; cursor: pointer; }
+        .start-btn { background: var(--success); color: white; padding: 15px 50px; font-size: 1.2rem; border: none; border-radius: 30px; cursor: pointer; transition: 0.3s; font-weight: bold; }
+        .start-btn:hover { transform: scale(1.05); background: #219150; }
+        #status-msg { margin-top: 10px; color: #666; font-size: 0.9rem; }
 
-        /* 問題画面のデザイン */
+        /* 問題画面 */
         .game-screen { display: none; }
-        .question-text { font-size: 1.25rem; line-height: 2.5; margin-bottom: 30px; padding: 20px; border: 1px solid #eee; border-radius: 10px; min-height: 100px; }
-        .drop-zone { display: inline-block; min-width: 80px; height: 1.8rem; border-bottom: 2px solid var(--primary); margin: 0 5px; vertical-align: middle; text-align: center; }
-        .drop-zone.correct { border-bottom-color: var(--success); color: var(--success); font-weight: bold; }
-        .word-bank { display: flex; flex-wrap: wrap; gap: 10px; padding: 20px; background: #f1f3f5; border-radius: 10px; min-height: 60px; justify-content: center; }
-        .word-chip { padding: 5px 15px; background: white; border: 1px solid #ddd; border-radius: 20px; cursor: grab; }
+        .info-bar { display: flex; justify-content: space-between; color: #666; margin-bottom: 15px; font-size: 0.9rem; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+        .question-text { font-size: 1.3rem; line-height: 2.8; margin-bottom: 30px; padding: 25px; border: 2px solid #f0f0f0; border-radius: 12px; background: #fff; }
         
+        /* ドロップ先 */
+        .drop-zone {
+            display: inline-block;
+            min-width: 90px;
+            height: 2rem;
+            border-bottom: 3px solid var(--primary);
+            margin: 0 8px;
+            vertical-align: middle;
+            text-align: center;
+            transition: 0.2s;
+        }
+        .drop-zone.over { background-color: #e3f2fd; }
+        .drop-zone.correct { border-bottom-color: var(--success); color: var(--success); font-weight: bold; }
+        .drop-zone.incorrect { border-bottom-color: var(--error); }
+
+        /* 語群 */
+        .word-bank {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 25px;
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 12px;
+            min-height: 60px;
+            justify-content: center;
+        }
+        .word-chip {
+            padding: 8px 18px;
+            background: white;
+            border: 1px solid #ced4da;
+            border-radius: 25px;
+            cursor: grab;
+            user-select: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            font-size: 1.1rem;
+        }
+        .word-chip:active { cursor: grabbing; }
+
         .controls { text-align: center; margin-top: 30px; }
-        button { padding: 10px 25px; border-radius: 5px; border: none; cursor: pointer; }
-        .btn-check { background: var(--primary); color: white; }
-        .btn-back { background: #95a5a6; color: white; margin-top: 10px; }
+        .btn-check { background: var(--primary); color: white; padding: 12px 40px; border-radius: 25px; border: none; font-size: 1.1rem; cursor: pointer; font-weight: bold; }
+        .btn-back { background: #95a5a6; color: white; padding: 8px 20px; border-radius: 5px; border: none; margin-top: 20px; cursor: pointer; }
+        #game-msg { margin-bottom: 15px; font-weight: bold; min-height: 1.5rem; }
     </style>
 </head>
 <body>
@@ -46,48 +83,53 @@
             </select>
             <button class="start-btn" onclick="startLesson()">学習をはじめる</button>
         </div>
-        <div id="status-msg"></div>
+        <div id="status-msg">データを読み込んでいます...</div>
     </div>
 
     <div id="game-screen" class="game-screen">
-        <div id="question-info" style="color:#666; margin-bottom:10px;"></div>
+        <div class="info-bar">
+            <span id="info-grammar"></span>
+            <span id="info-level"></span>
+        </div>
         <div id="question-area" class="question-text"></div>
+        <p style="text-align:center; color:#888; font-size:0.9rem;">▼ 単語を上の空欄にドラッグしてください</p>
         <div id="word-bank" class="word-bank"></div>
         
         <div class="controls">
             <div id="game-msg"></div>
             <button class="btn-check" onclick="checkAnswers()">答え合わせ</button><br>
-            <button class="btn-back" onclick="showHome()">ホームに戻る</button>
+            <button class="btn-back" onclick="showHome()">選択画面に戻る</button>
         </div>
     </div>
 </div>
 
 <script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycby1jXDHVarBS3MhXt8glWF673WZzVolyNYS39k0UEq4x7USbsG_tiIublX6PRcrSzYU/exec';
+    // ★https://script.google.com/macros/s/AKfycby1jXDHVarBS3MhXt8glWF673WZzVolyNYS39k0UEq4x7USbsG_tiIublX6PRcrSzYU/exec★
+    const API_URL = 'YOUR_GAS_WEB_APP_URL_HERE';
+    
     let allQuestions = [];
     let filteredQuestions = [];
     let currentData = null;
     let draggedElement = null;
 
-    // 最初にデータを読み込み、セレクトボックスを初期化
     async function init() {
         try {
             const res = await fetch(API_URL);
             allQuestions = await res.json();
             
-            // セレクトボックスの選択肢を自動生成
             populateSelect('grammar-select', 'grammar');
             populateSelect('level-select', 'level');
-            document.getElementById('status-msg').innerText = "準備完了！";
+            document.getElementById('status-msg').innerText = "準備完了！問題を選んでスタートしてください。";
         } catch (e) {
-            document.getElementById('status-msg').innerText = "データの取得に失敗しました。";
+            document.getElementById('status-msg').innerText = "データの取得に失敗しました。URLやGASの設定を確認してください。";
         }
     }
 
     function populateSelect(elementId, key) {
         const select = document.getElementById(elementId);
-        const values = [...new Set(allQuestions.map(q => q[key]))]; // 重複削除
-        values.forEach(v => {
+        // 値を文字列として抽出し、重複を除去
+        const values = [...new Set(allQuestions.map(q => q[key] ? q[key].toString() : ""))].filter(v => v !== "");
+        values.sort().forEach(v => {
             const opt = document.createElement('option');
             opt.value = v;
             opt.innerText = v;
@@ -95,14 +137,16 @@
         });
     }
 
-    // 学習開始
     function startLesson() {
         const grammar = document.getElementById('grammar-select').value;
         const level = document.getElementById('level-select').value;
 
+        // 型変換（toString）を行いながら比較することでエラーを防ぐ
         filteredQuestions = allQuestions.filter(q => {
-            const gMatch = (grammar === 'all' || q.grammar === grammar);
-            const lMatch = (level === 'all' || q.level === level);
+            const qGrammar = q.grammar ? q.grammar.toString() : "";
+            const qLevel = q.level ? q.level.toString() : "";
+            const gMatch = (grammar === 'all' || qGrammar === grammar);
+            const lMatch = (level === 'all' || qLevel === level);
             return gMatch && lMatch;
         });
 
@@ -118,7 +162,8 @@
 
     function loadNextQuestion() {
         currentData = filteredQuestions[Math.floor(Math.random() * filteredQuestions.length)];
-        document.getElementById('question-info').innerText = `ターゲット: ${currentData.grammar} [${currentData.level}]`;
+        document.getElementById('info-grammar').innerText = `文法: ${currentData.grammar}`;
+        document.getElementById('info-level').innerText = `レベル: ${currentData.level}`;
         renderQuestion(currentData);
     }
 
@@ -128,15 +173,17 @@
         bank.innerHTML = "";
         document.getElementById('game-msg').innerText = "";
         
-        // 本文描画
-        qArea.innerHTML = item.text.replace(/[\(（](\d+)[\)）]/g, (m, n) => {
-            return `<span class="drop-zone" id="zone-${n}" data-ans-num="${n}"></span>`;
+        // 本文描画：(1)などをドロップエリアに変換
+        qArea.innerHTML = item.text.replace(/[\(（](\d+)[\)）]/g, (match, num) => {
+            return `<span class="drop-zone" id="zone-${num}" data-ans-num="${num}"></span>`;
         });
 
-        // 語群描画
+        // 語群の準備
         let words = [];
-        for(let i=1; i<=10; i++) if(item['ans'+i]) words.push(item['ans'+i]);
-        words.sort(() => Math.random() - 0.5);
+        for(let i=1; i<=10; i++) {
+            if(item['ans'+i]) words.push(item['ans'+i].toString());
+        }
+        words.sort(() => Math.random() - 0.5); // シャッフル
 
         words.forEach(word => {
             const chip = document.createElement('div');
@@ -154,8 +201,11 @@
         const zones = document.querySelectorAll('.drop-zone');
         zones.forEach(zone => {
             zone.addEventListener('dragover', e => e.preventDefault());
+            zone.addEventListener('dragenter', e => zone.classList.add('over'));
+            zone.addEventListener('dragleave', () => zone.classList.remove('over'));
             zone.addEventListener('drop', e => {
                 e.preventDefault();
+                zone.classList.remove('over');
                 if(zone.firstChild) document.getElementById('word-bank').appendChild(zone.firstChild);
                 zone.appendChild(draggedElement);
             });
@@ -165,27 +215,42 @@
     function checkAnswers() {
         const zones = document.querySelectorAll('.drop-zone');
         let allCorrect = true;
+        let filledCount = 0;
 
         zones.forEach(zone => {
-            if(!zone.firstChild) { allCorrect = false; return; }
-            const num = zone.dataset.ansNum;
-            const isCorrect = zone.innerText.trim().toLowerCase() === currentData['ans'+num].toString().trim().toLowerCase();
+            if(!zone.firstChild) return;
+            filledCount++;
             
-            if(isCorrect) {
+            const num = zone.dataset.ansNum;
+            const userAnswer = zone.innerText.trim().toLowerCase();
+            const correctAnswer = currentData['ans'+num].toString().trim().toLowerCase();
+
+            if(userAnswer === correctAnswer) {
                 zone.className = 'drop-zone correct';
                 zone.firstChild.draggable = false;
             } else {
+                zone.className = 'drop-zone incorrect';
+                // 1秒後に自動で語群に戻す
                 setTimeout(() => {
-                    if(zone.firstChild) document.getElementById('word-bank').appendChild(zone.firstChild);
-                    zone.className = 'drop-zone';
-                }, 800);
+                    if(zone.classList.contains('incorrect') && zone.firstChild) {
+                        document.getElementById('word-bank').appendChild(zone.firstChild);
+                        zone.className = 'drop-zone';
+                    }
+                }, 1000);
                 allCorrect = false;
             }
         });
 
-        if(allCorrect) {
-            document.getElementById('game-msg').innerHTML = "<span style='color:green;'>🎉 正解！3秒後に次の問題へ...</span>";
-            setTimeout(loadNextQuestion, 3000);
+        const msg = document.getElementById('game-msg');
+        if(filledCount < zones.length) {
+            msg.innerText = "すべての空欄を埋めてください。";
+            msg.style.color = "orange";
+        } else if(allCorrect) {
+            msg.innerHTML = "<span style='color:green;'>🎉 全問正解！次の問題に進みます...</span>";
+            setTimeout(loadNextQuestion, 2500);
+        } else {
+            msg.innerText = "間違いがあります。単語が戻りました。";
+            msg.style.color = "red";
         }
     }
 
