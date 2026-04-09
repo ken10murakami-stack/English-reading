@@ -3,41 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>英語長文 Selection & DragDrop</title>
+    <title>English Reading App</title>
     <style>
         :root { --primary: #3498db; --success: #27ae60; --error: #e74c3c; --bg: #f4f7f6; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .container { max-width: 850px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         
         /* ホーム画面 */
         .home-screen { text-align: center; }
-        .filter-group { margin: 20px 0; display: flex; flex-direction: column; gap: 15px; align-items: center; }
-        select { padding: 12px; width: 280px; border-radius: 8px; border: 1px solid #ddd; font-size: 1rem; appearance: none; background: white; cursor: pointer; }
+        .filter-group { margin: 25px 0; display: flex; flex-direction: column; gap: 15px; align-items: center; }
+        select { padding: 12px; width: 280px; border-radius: 8px; border: 1px solid #ddd; font-size: 1rem; background: white; cursor: pointer; }
         .start-btn { background: var(--success); color: white; padding: 15px 50px; font-size: 1.2rem; border: none; border-radius: 30px; cursor: pointer; transition: 0.3s; font-weight: bold; }
         .start-btn:hover { transform: scale(1.05); background: #219150; }
-        #status-msg { margin-top: 10px; color: #666; font-size: 0.9rem; }
+        #status-msg { margin-top: 15px; color: #666; font-size: 0.9rem; }
 
         /* 問題画面 */
         .game-screen { display: none; }
-        .info-bar { display: flex; justify-content: space-between; color: #666; margin-bottom: 15px; font-size: 0.9rem; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-        .question-text { font-size: 1.3rem; line-height: 2.8; margin-bottom: 30px; padding: 25px; border: 2px solid #f0f0f0; border-radius: 12px; background: #fff; }
+        .info-bar { display: flex; justify-content: space-between; color: #666; margin-bottom: 15px; font-size: 0.9rem; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }
+        .question-text { font-size: 1.25rem; line-height: 2.8; margin-bottom: 30px; padding: 25px; border: 1px solid #eee; border-radius: 12px; background: #fff; white-space: pre-wrap; }
         
-        /* ドロップ先 */
+        /* 空欄（ドロップ先） */
         .drop-zone {
             display: inline-block;
-            min-width: 90px;
-            height: 2rem;
+            min-width: 100px;
+            height: 1.8rem;
             border-bottom: 3px solid var(--primary);
-            margin: 0 8px;
+            margin: 0 5px;
             vertical-align: middle;
             text-align: center;
             transition: 0.2s;
+            background: #fdfdfd;
         }
-        .drop-zone.over { background-color: #e3f2fd; }
+        .drop-zone.over { background-color: #e3f2fd; border-bottom-style: dashed; }
         .drop-zone.correct { border-bottom-color: var(--success); color: var(--success); font-weight: bold; }
         .drop-zone.incorrect { border-bottom-color: var(--error); }
 
-        /* 語群 */
+        /* 語群エリア */
         .word-bank {
             display: flex;
             flex-wrap: wrap;
@@ -50,20 +51,21 @@
             justify-content: center;
         }
         .word-chip {
-            padding: 8px 18px;
+            padding: 8px 20px;
             background: white;
             border: 1px solid #ced4da;
             border-radius: 25px;
             cursor: grab;
             user-select: none;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             font-size: 1.1rem;
+            color: #333;
         }
         .word-chip:active { cursor: grabbing; }
 
         .controls { text-align: center; margin-top: 30px; }
-        .btn-check { background: var(--primary); color: white; padding: 12px 40px; border-radius: 25px; border: none; font-size: 1.1rem; cursor: pointer; font-weight: bold; }
-        .btn-back { background: #95a5a6; color: white; padding: 8px 20px; border-radius: 5px; border: none; margin-top: 20px; cursor: pointer; }
+        .btn-check { background: var(--primary); color: white; padding: 12px 45px; border-radius: 30px; border: none; font-size: 1.1rem; cursor: pointer; font-weight: bold; }
+        .btn-back { background: #95a5a6; color: white; padding: 8px 20px; border-radius: 5px; border: none; margin-top: 25px; cursor: pointer; }
         #game-msg { margin-bottom: 15px; font-weight: bold; min-height: 1.5rem; }
     </style>
 </head>
@@ -71,7 +73,7 @@
 
 <div class="container">
     <div id="home-screen" class="home-screen">
-        <h1>English Reading App</h1>
+        <h1>📝 English Reading App</h1>
         <p>学習したい「文法」と「レベル」を選んでください</p>
         
         <div class="filter-group">
@@ -92,7 +94,7 @@
             <span id="info-level"></span>
         </div>
         <div id="question-area" class="question-text"></div>
-        <p style="text-align:center; color:#888; font-size:0.9rem;">▼ 単語を上の空欄にドラッグしてください</p>
+        <p style="text-align:center; color:#888; font-size:0.9rem;">▼ 単語をドラッグして空欄に入れてください</p>
         <div id="word-bank" class="word-bank"></div>
         
         <div class="controls">
@@ -104,31 +106,32 @@
 </div>
 
 <script>
-    // ★https://script.google.com/macros/s/AKfycby1jXDHVarBS3MhXt8glWF673WZzVolyNYS39k0UEq4x7USbsG_tiIublX6PRcrSzYU/exec★
-    const API_URL = 'YOUR_GAS_WEB_APP_URL_HERE';
+    // ★重要：ここにGASの新しいウェブアプリURLを貼り付けてください
+    const API_URL = 'https://script.google.com/macros/s/AKfycbw4FPxI-BanieQxFYZqE5QKotStshl3FiZm7DbRL4gLh8YvirMmNbLbx1D-ZdZbYvBP/exec';
     
     let allQuestions = [];
     let filteredQuestions = [];
     let currentData = null;
     let draggedElement = null;
 
+    // 初期化
     async function init() {
         try {
             const res = await fetch(API_URL);
             allQuestions = await res.json();
             
+            // セレクトボックスの選択肢を生成（重複排除＋空値除外）
             populateSelect('grammar-select', 'grammar');
             populateSelect('level-select', 'level');
-            document.getElementById('status-msg').innerText = "準備完了！問題を選んでスタートしてください。";
+            document.getElementById('status-msg').innerText = "準備完了！";
         } catch (e) {
-            document.getElementById('status-msg').innerText = "データの取得に失敗しました。URLやGASの設定を確認してください。";
+            document.getElementById('status-msg').innerText = "データの取得に失敗しました。URLやGASの公開設定を確認してください。";
         }
     }
 
     function populateSelect(elementId, key) {
         const select = document.getElementById(elementId);
-        // 値を文字列として抽出し、重複を除去
-        const values = [...new Set(allQuestions.map(q => q[key] ? q[key].toString() : ""))].filter(v => v !== "");
+        const values = [...new Set(allQuestions.map(q => q[key] ? q[key].toString().trim() : ""))].filter(v => v !== "");
         values.sort().forEach(v => {
             const opt = document.createElement('option');
             opt.value = v;
@@ -137,21 +140,22 @@
         });
     }
 
+    // 学習開始（判定強化版）
     function startLesson() {
-        const grammar = document.getElementById('grammar-select').value;
-        const level = document.getElementById('level-select').value;
+        const grammarVal = document.getElementById('grammar-select').value;
+        const levelVal = document.getElementById('level-select').value;
 
-        // 型変換（toString）を行いながら比較することでエラーを防ぐ
         filteredQuestions = allQuestions.filter(q => {
-            const qGrammar = q.grammar ? q.grammar.toString() : "";
-            const qLevel = q.level ? q.level.toString() : "";
-            const gMatch = (grammar === 'all' || qGrammar === grammar);
-            const lMatch = (level === 'all' || qLevel === level);
+            const qGrammar = (q.grammar || "").toString().trim();
+            const qLevel = (q.level || "").toString().trim();
+            
+            const gMatch = (grammarVal === 'all' || qGrammar === grammarVal);
+            const lMatch = (levelVal === 'all' || qLevel === levelVal);
             return gMatch && lMatch;
         });
 
         if (filteredQuestions.length === 0) {
-            alert("該当する問題がありません！");
+            alert(`該当する問題がありません！\n(選択: ${grammarVal} / ${levelVal})`);
             return;
         }
 
@@ -161,6 +165,7 @@
     }
 
     function loadNextQuestion() {
+        // 同じ問題が連続しないようにランダム抽出
         currentData = filteredQuestions[Math.floor(Math.random() * filteredQuestions.length)];
         document.getElementById('info-grammar').innerText = `文法: ${currentData.grammar}`;
         document.getElementById('info-level').innerText = `レベル: ${currentData.level}`;
@@ -173,15 +178,15 @@
         bank.innerHTML = "";
         document.getElementById('game-msg').innerText = "";
         
-        // 本文描画：(1)などをドロップエリアに変換
+        // (1), (2) をドロップゾーンに変換
         qArea.innerHTML = item.text.replace(/[\(（](\d+)[\)）]/g, (match, num) => {
             return `<span class="drop-zone" id="zone-${num}" data-ans-num="${num}"></span>`;
         });
 
-        // 語群の準備
+        // 語群の準備 (ans1〜ans10まで対応)
         let words = [];
         for(let i=1; i<=10; i++) {
-            if(item['ans'+i]) words.push(item['ans'+i].toString());
+            if(item['ans'+i]) words.push(item['ans'+i].toString().trim());
         }
         words.sort(() => Math.random() - 0.5); // シャッフル
 
@@ -206,6 +211,7 @@
             zone.addEventListener('drop', e => {
                 e.preventDefault();
                 zone.classList.remove('over');
+                // 既にある場合は語群に戻す
                 if(zone.firstChild) document.getElementById('word-bank').appendChild(zone.firstChild);
                 zone.appendChild(draggedElement);
             });
@@ -230,13 +236,13 @@
                 zone.firstChild.draggable = false;
             } else {
                 zone.className = 'drop-zone incorrect';
-                // 1秒後に自動で語群に戻す
+                // 間違えたら0.8秒後に戻す
                 setTimeout(() => {
                     if(zone.classList.contains('incorrect') && zone.firstChild) {
                         document.getElementById('word-bank').appendChild(zone.firstChild);
                         zone.className = 'drop-zone';
                     }
-                }, 1000);
+                }, 800);
                 allCorrect = false;
             }
         });
@@ -246,8 +252,8 @@
             msg.innerText = "すべての空欄を埋めてください。";
             msg.style.color = "orange";
         } else if(allCorrect) {
-            msg.innerHTML = "<span style='color:green;'>🎉 全問正解！次の問題に進みます...</span>";
-            setTimeout(loadNextQuestion, 2500);
+            msg.innerHTML = "<span style='color:green;'>🎉 正解です！次の問題へ...</span>";
+            setTimeout(loadNextQuestion, 2000);
         } else {
             msg.innerText = "間違いがあります。単語が戻りました。";
             msg.style.color = "red";
