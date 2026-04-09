@@ -106,7 +106,7 @@
 </div>
 
 <script>
-    // ★重要：ここにGASの新しいウェブアプリURLを貼り付けてください
+    // 提供されたGASのURLを適用
     const API_URL = 'https://script.google.com/macros/s/AKfycbw4FPxI-BanieQxFYZqE5QKotStshl3FiZm7DbRL4gLh8YvirMmNbLbx1D-ZdZbYvBP/exec';
     
     let allQuestions = [];
@@ -114,18 +114,17 @@
     let currentData = null;
     let draggedElement = null;
 
-    // 初期化
     async function init() {
         try {
             const res = await fetch(API_URL);
             allQuestions = await res.json();
             
-            // セレクトボックスの選択肢を生成（重複排除＋空値除外）
+            // セレクトボックスの選択肢を生成
             populateSelect('grammar-select', 'grammar');
             populateSelect('level-select', 'level');
             document.getElementById('status-msg').innerText = "準備完了！";
         } catch (e) {
-            document.getElementById('status-msg').innerText = "データの取得に失敗しました。URLやGASの公開設定を確認してください。";
+            document.getElementById('status-msg').innerText = "データの取得に失敗しました。";
         }
     }
 
@@ -140,11 +139,11 @@
         });
     }
 
-    // 学習開始（判定強化版）
     function startLesson() {
         const grammarVal = document.getElementById('grammar-select').value;
         const levelVal = document.getElementById('level-select').value;
 
+        // 文字列のトリミングと型変換を徹底してフィルタリング
         filteredQuestions = allQuestions.filter(q => {
             const qGrammar = (q.grammar || "").toString().trim();
             const qLevel = (q.level || "").toString().trim();
@@ -165,7 +164,6 @@
     }
 
     function loadNextQuestion() {
-        // 同じ問題が連続しないようにランダム抽出
         currentData = filteredQuestions[Math.floor(Math.random() * filteredQuestions.length)];
         document.getElementById('info-grammar').innerText = `文法: ${currentData.grammar}`;
         document.getElementById('info-level').innerText = `レベル: ${currentData.level}`;
@@ -178,17 +176,17 @@
         bank.innerHTML = "";
         document.getElementById('game-msg').innerText = "";
         
-        // (1), (2) をドロップゾーンに変換
+        // (1), (2) をドロップエリアに変換
         qArea.innerHTML = item.text.replace(/[\(（](\d+)[\)）]/g, (match, num) => {
             return `<span class="drop-zone" id="zone-${num}" data-ans-num="${num}"></span>`;
         });
 
-        // 語群の準備 (ans1〜ans10まで対応)
+        // 語群の準備 (ans1〜ans10)
         let words = [];
         for(let i=1; i<=10; i++) {
             if(item['ans'+i]) words.push(item['ans'+i].toString().trim());
         }
-        words.sort(() => Math.random() - 0.5); // シャッフル
+        words.sort(() => Math.random() - 0.5); 
 
         words.forEach(word => {
             const chip = document.createElement('div');
@@ -211,61 +209,4 @@
             zone.addEventListener('drop', e => {
                 e.preventDefault();
                 zone.classList.remove('over');
-                // 既にある場合は語群に戻す
-                if(zone.firstChild) document.getElementById('word-bank').appendChild(zone.firstChild);
-                zone.appendChild(draggedElement);
-            });
-        });
-    }
-
-    function checkAnswers() {
-        const zones = document.querySelectorAll('.drop-zone');
-        let allCorrect = true;
-        let filledCount = 0;
-
-        zones.forEach(zone => {
-            if(!zone.firstChild) return;
-            filledCount++;
-            
-            const num = zone.dataset.ansNum;
-            const userAnswer = zone.innerText.trim().toLowerCase();
-            const correctAnswer = currentData['ans'+num].toString().trim().toLowerCase();
-
-            if(userAnswer === correctAnswer) {
-                zone.className = 'drop-zone correct';
-                zone.firstChild.draggable = false;
-            } else {
-                zone.className = 'drop-zone incorrect';
-                // 間違えたら0.8秒後に戻す
-                setTimeout(() => {
-                    if(zone.classList.contains('incorrect') && zone.firstChild) {
-                        document.getElementById('word-bank').appendChild(zone.firstChild);
-                        zone.className = 'drop-zone';
-                    }
-                }, 800);
-                allCorrect = false;
-            }
-        });
-
-        const msg = document.getElementById('game-msg');
-        if(filledCount < zones.length) {
-            msg.innerText = "すべての空欄を埋めてください。";
-            msg.style.color = "orange";
-        } else if(allCorrect) {
-            msg.innerHTML = "<span style='color:green;'>🎉 正解です！次の問題へ...</span>";
-            setTimeout(loadNextQuestion, 2000);
-        } else {
-            msg.innerText = "間違いがあります。単語が戻りました。";
-            msg.style.color = "red";
-        }
-    }
-
-    function showHome() {
-        document.getElementById('home-screen').style.display = 'block';
-        document.getElementById('game-screen').style.display = 'none';
-    }
-
-    init();
-</script>
-</body>
-</html>
+                if(zone.firstChild) document.getElementById('word-bank').appendChild(zone.
