@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English App - Advanced Edition</title>
+    <title>English App - Professional Edition</title>
     <style>
         :root { --primary: #3498db; --success: #27ae60; --error: #e74c3c; --bg: #f4f7f6; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; color: #333; }
@@ -14,18 +14,18 @@
         .filter-group { margin: 25px 0; display: flex; flex-direction: column; gap: 15px; align-items: center; }
         select { padding: 12px; width: 280px; border-radius: 8px; border: 1px solid #ddd; font-size: 1rem; background: white; }
         .start-btn { background: var(--success); color: white; padding: 15px 50px; font-size: 1.2rem; border: none; border-radius: 30px; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        .start-btn:hover { transform: scale(1.05); }
+        .start-btn:hover { transform: scale(1.05); background: #219150; }
 
         /* 問題画面 */
         .game-screen { display: none; }
         .info-bar { display: flex; justify-content: space-between; color: #666; margin-bottom: 15px; font-size: 0.9rem; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }
         .question-text { font-size: 1.25rem; line-height: 2.8; margin-bottom: 30px; padding: 25px; border: 1px solid #eee; border-radius: 12px; background: #fff; white-space: pre-wrap; }
         
-        /* 辞書単語（熟語対応） */
-        .clickable-word { cursor: pointer; border-bottom: 1px dashed #3498db; transition: 0.2s; color: #2980b9; padding: 0 2px; }
+        /* 辞書単語 */
+        .clickable-word { cursor: pointer; border-bottom: 1px dashed #3498db; transition: 0.2s; color: #2980b9; padding: 0 1px; }
         .clickable-word:hover { background-color: #fff9c4; }
 
-        /* 辞書ツールチップ */
+        /* ツールチップ */
         #word-tooltip {
             position: absolute; display: none; background: rgba(0,0,0,0.9); color: #fff;
             padding: 10px 15px; border-radius: 8px; font-size: 0.95rem; z-index: 1000;
@@ -33,9 +33,12 @@
         }
         .tooltip-read { display: block; font-size: 0.75rem; color: #3498db; margin-bottom: 4px; font-weight: bold; }
 
-        /* 空欄とピース */
+        /* ドロップエリア */
         .drop-zone { display: inline-block; min-width: 95px; height: 1.8rem; border-bottom: 2px solid var(--primary); margin: 0 4px; vertical-align: middle; text-align: center; background: #fdfdfd; }
         .drop-zone.correct { border-bottom-color: var(--success); color: var(--success); font-weight: bold; }
+        .drop-zone.incorrect { border-bottom-color: var(--error); }
+
+        /* 語群 */
         .word-bank { display: flex; flex-wrap: wrap; gap: 10px; padding: 20px; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 12px; min-height: 60px; justify-content: center; }
         .word-chip { padding: 4px 14px; background: white; border: 1px solid #ced4da; border-radius: 6px; cursor: grab; font-size: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
         
@@ -51,7 +54,6 @@
 
     <div id="home-screen" class="home-screen">
         <h1>📝 English Reading App</h1>
-        <p>文法とレベルを選択して開始してください</p>
         <div class="filter-group">
             <select id="grammar-select"><option value="all">すべての文法</option></select>
             <select id="level-select"><option value="all">すべてのレベル</option></select>
@@ -66,7 +68,7 @@
         <p style="text-align:center; color:#888; font-size:0.85rem;">▼ 下の単語をドラッグして空欄を埋めてください</p>
         <div id="word-bank" class="word-bank"></div>
         <div class="controls">
-            <div id="game-msg" style="margin-bottom:10px; min-height:1.2rem;"></div>
+            <div id="game-msg" style="margin-bottom:10px; min-height:1.2rem; font-weight:bold;"></div>
             <button class="btn-check" onclick="checkAnswers()">答え合わせ</button><br>
             <button class="btn-back" onclick="showHome()">選択画面に戻る</button>
         </div>
@@ -74,8 +76,7 @@
 </div>
 
 <script>
-    // ★新しいGASのURLに書き換えてください
-    const API_URL = 'https://script.google.com/macros/s/AKfycbz53S23gaQgTG8YAbfyh1DobnOq3qWiNnWD1GWK8bdHi6YcT9TAnsu2njS1usveyFqc/exec';
+    const API_URL = 'https://script.google.com/macros/s/AKfycbzlpHocLB4yZXg-yyGeaTD2pTp9L_mBZlT1e9TKRTUUWV5_NLA6YbmLys-M2JybXFE5/exec';
     
     let allQuestions = [];
     let dictionary = {};
@@ -92,7 +93,7 @@
             populateSelect('grammar-select', 'grammar');
             populateSelect('level-select', 'level');
             document.getElementById('status-msg').innerText = "準備完了！";
-        } catch (e) { document.getElementById('status-msg').innerText = "エラー：データが取得できませんでした。"; }
+        } catch (e) { document.getElementById('status-msg').innerText = "データの取得に失敗しました。"; }
     }
 
     function populateSelect(id, key) {
@@ -129,20 +130,21 @@
         const qArea = document.getElementById('question-area');
         const bank = document.getElementById('word-bank');
         bank.innerHTML = "";
+        document.getElementById('game-msg').innerText = "";
         
-        // (1) などの空欄をプレースホルダー化
         let text = item.text.replace(/[\(（](\d+)[\)）]/g, "__HOLE_$1__");
 
-        // 熟語優先の判定（長いものから検索）
+        // 熟語判定（文字数が長い順にスキャン）
         const dictKeys = Object.keys(dictionary).sort((a, b) => b.length - a.length);
         dictKeys.forEach(phrase => {
             if (phrase.includes(" ")) {
-                const regex = new RegExp(`\\b${phrase}\\b`, 'gi');
-                text = text.replace(regex, (match) => `__PHRASE_${phrase.replace(/ /g, "_")}_[${match}]__`);
+                // アポストロフィを含む熟語にも対応するため \b の代わりに境界を調整
+                const regex = new RegExp(`(^|\\s|[.,!\\?\\(\\)])${phrase}($|\\s|[.,!\\?\\(\\)])`, 'gi');
+                text = text.replace(regex, (match, p1, p2) => `${p1}__PHRASE_${phrase.replace(/ /g, "_")}_[${phrase}]__${p2}`);
             }
         });
 
-        // テキストを分割してボタン化
+        // テキスト分割（アポストロフィ ' を単語の一部として許可）
         let parts = text.split(/(\s+|__HOLE_\d+__|__PHRASE_.*?__|[,.\?\!\(\)])/);
         let html = "";
         parts.forEach(part => {
@@ -154,7 +156,7 @@
                 const m = part.match(/^__PHRASE_(.*?)_\[(.*?)\]__$/);
                 const key = m[1].replace(/_/g, " ");
                 html += `<span class="clickable-word" onclick="showDict(event, '${key}')">${m[2]}</span>`;
-            } else if (part.match(/^[a-zA-Z]+$/)) {
+            } else if (part.match(/^[a-zA-Z']+$/)) { // アポストロフィを許可
                 const low = part.toLowerCase();
                 if (dictionary[low]) html += `<span class="clickable-word" onclick="showDict(event, '${low}')">${part}</span>`;
                 else html += part;
@@ -164,7 +166,7 @@
         });
         qArea.innerHTML = html;
 
-        // 語群（正解＋ダミー）
+        // 語群生成
         let words = [];
         for(let i=1; i<=10; i++) if(item['ans'+i]) words.push(item['ans'+i].toString().trim());
         if (item.dummy) words = words.concat(item.dummy.toString().split(',').map(d => d.trim()));
@@ -191,7 +193,6 @@
         const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
 
         tooltip.style.display = 'block';
-        // 絶対位置で計算
         tooltip.style.left = (rect.left + scrollX + (rect.width/2) - 70) + 'px';
         tooltip.style.top = (rect.top + scrollY - 60) + 'px';
         
@@ -213,8 +214,10 @@
     function checkAnswers() {
         const zones = document.querySelectorAll('.drop-zone');
         let allCorrect = true;
+        let filledCount = 0;
         zones.forEach(zone => {
             if(!zone.firstChild) { allCorrect = false; return; }
+            filledCount++;
             const num = zone.dataset.ansNum;
             const user = zone.firstChild.innerText.trim().toLowerCase();
             const correct = currentData['ans'+num].toString().trim().toLowerCase();
@@ -230,8 +233,10 @@
             }
         });
         if(allCorrect && zones.length > 0) {
-            document.getElementById('game-msg').innerHTML = "<span style='color:green;'>🎉 正解！</span>";
+            document.getElementById('game-msg').innerHTML = "<span style='color:green;'>🎉 正解です！</span>";
             setTimeout(loadNextQuestion, 2000);
+        } else if (filledCount === zones.length) {
+            document.getElementById('game-msg').innerHTML = "<span style='color:red;'>間違いがあります</span>";
         }
     }
 
