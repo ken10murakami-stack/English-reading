@@ -3,52 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>English App - Advanced Edition</title>
+    <title>English Reading App</title>
     <style>
         :root { --primary: #3498db; --success: #27ae60; --error: #e74c3c; --bg: #f4f7f6; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; color: #333; }
         .container { max-width: 850px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); position: relative; }
-        
         .home-screen { text-align: center; }
         .filter-group { margin: 25px 0; display: flex; flex-direction: column; gap: 15px; align-items: center; }
         select { padding: 12px; width: 280px; border-radius: 8px; border: 1px solid #ddd; font-size: 1rem; background: white; }
         .start-btn { background: var(--success); color: white; padding: 15px 50px; font-size: 1.2rem; border: none; border-radius: 30px; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        .start-btn:hover { transform: scale(1.05); }
-
         .game-screen { display: none; }
         .info-bar { display: flex; justify-content: space-between; color: #666; margin-bottom: 15px; font-size: 0.9rem; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }
         .question-text { font-size: 1.25rem; line-height: 2.8; margin-bottom: 30px; padding: 25px; border: 1px solid #eee; border-radius: 12px; background: #fff; white-space: pre-wrap; }
-        
-        /* 辞書単語のスタイル */
         .clickable-word { cursor: pointer; border-bottom: 1px dashed #3498db; transition: 0.2s; color: #2980b9; padding: 0 1px; }
         .clickable-word:hover { background-color: #fff9c4; }
-
-        /* ツールチップ（位置修正用） */
         #word-tooltip {
             position: absolute; display: none; background: rgba(0,0,0,0.9); color: #fff;
             padding: 10px 15px; border-radius: 8px; font-size: 0.95rem; z-index: 2000;
             pointer-events: none; text-align: center; min-width: 140px; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-            transform: translateX(-50%); /* 中央寄せを安定させる */
+            transform: translateX(-50%);
         }
         .tooltip-read { display: block; font-size: 0.75rem; color: #3498db; margin-bottom: 4px; font-weight: bold; }
-
         .drop-zone { display: inline-block; min-width: 95px; height: 1.8rem; border-bottom: 2px solid var(--primary); margin: 0 4px; vertical-align: middle; text-align: center; background: #fdfdfd; }
         .drop-zone.correct { border-bottom-color: var(--success); color: var(--success); font-weight: bold; }
-        .drop-zone.incorrect { border-bottom-color: var(--error); }
-
         .word-bank { display: flex; flex-wrap: wrap; gap: 10px; padding: 20px; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 12px; min-height: 60px; justify-content: center; }
-        .word-chip { padding: 4px 14px; background: white; border: 1px solid #ced4da; border-radius: 6px; cursor: grab; font-size: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
-        
+        .word-chip { padding: 4px 14px; background: white; border: 1px solid #ced4da; border-radius: 6px; cursor: grab; font-size: 1.25rem; }
         .controls { text-align: center; margin-top: 30px; }
         .btn-check { background: var(--primary); color: white; padding: 12px 45px; border-radius: 30px; border: none; font-size: 1.1rem; cursor: pointer; font-weight: bold; }
-        .btn-back { background: #95a5a6; color: white; padding: 8px 20px; border-radius: 5px; border: none; margin-top: 25px; cursor: pointer; }
     </style>
 </head>
 <body>
-
 <div class="container">
     <div id="word-tooltip"></div>
-
     <div id="home-screen" class="home-screen">
         <h1>📝 English Reading App</h1>
         <div class="filter-group">
@@ -56,31 +42,23 @@
             <select id="level-select"><option value="all">すべてのレベル</option></select>
             <button class="start-btn" onclick="startLesson()">学習をはじめる</button>
         </div>
-        <div id="status-msg">データを読み込み中...</div>
+        <div id="status-msg">読み込み中...</div>
     </div>
-
     <div id="game-screen" class="game-screen">
         <div class="info-bar"><span id="info-grammar"></span><span id="info-level"></span></div>
         <div id="question-area" class="question-text"></div>
         <div id="word-bank" class="word-bank"></div>
         <div class="controls">
             <div id="game-msg" style="margin-bottom:10px; min-height:1.2rem; font-weight:bold;"></div>
-            <button class="btn-check" onclick="checkAnswers()">答え合わせ</button><br>
-            <button class="btn-back" onclick="showHome()">戻る</button>
+            <button class="btn-check" onclick="checkAnswers()">答え合わせ</button>
+            <button onclick="showHome()" style="background:#95a5a6; color:white; border:none; padding:8px 20px; border-radius:5px; margin-left:10px; cursor:pointer;">戻る</button>
         </div>
     </div>
 </div>
 
 <script>
-    // ★ここにご自身のGAS URLを貼り付けてください
-    const API_URL = 'https://script.google.com/macros/s/AKfycbxyllkiXnzsrJgLwuvAqTuVZcbSHo2YvaatcxDRA7BjLundjV3OSIKORY7yKZTlw4Vr/exec';
-    
-    let allQuestions = [];
-    let dictionary = {};
-    let filteredQuestions = [];
-    let currentData = null;
-    let draggedElement = null;
-    let hideTimeout = null;
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyfrm9Yir-0ytH87N3QnocqJmA6YtQIOxJ8DHlsi3Ab48yUwMzmL1-tdq9yZup5gb3P/exec'; // ★ここにURLを貼る
+    let allQuestions = [], dictionary = {}, filteredQuestions = [], currentData = null, draggedElement = null, hideTimeout = null;
 
     async function init() {
         try {
@@ -91,7 +69,7 @@
             populateSelect('grammar-select', 'grammar');
             populateSelect('level-select', 'level');
             document.getElementById('status-msg').innerText = "準備完了！";
-        } catch (e) { document.getElementById('status-msg').innerText = "通信エラーが発生しました。"; }
+        } catch (e) { document.getElementById('status-msg').innerText = "接続エラー"; }
     }
 
     function populateSelect(id, key) {
@@ -106,12 +84,8 @@
     function startLesson() {
         const gV = document.getElementById('grammar-select').value;
         const lV = document.getElementById('level-select').value;
-        filteredQuestions = allQuestions.filter(q => {
-            const qG = (q.grammar || "").toString().trim();
-            const qL = (q.level || "").toString().trim();
-            return (gV === 'all' || qG === gV) && (lV === 'all' || qL === lV);
-        });
-        if (filteredQuestions.length === 0) return alert("問題がありません。");
+        filteredQuestions = allQuestions.filter(q => (gV === 'all' || q.grammar == gV) && (lV === 'all' || q.level == lV));
+        if (filteredQuestions.length === 0) return alert("問題がありません");
         document.getElementById('home-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'block';
         loadNextQuestion();
@@ -128,96 +102,79 @@
         const qArea = document.getElementById('question-area');
         const bank = document.getElementById('word-bank');
         bank.innerHTML = "";
-        
         let text = item.text.replace(/[\(（](\d+)[\)）]/g, "__HOLE_$1__");
 
-        // 熟語優先判定
         const dictKeys = Object.keys(dictionary).sort((a, b) => b.length - a.length);
         dictKeys.forEach(phrase => {
             if (phrase.includes(" ")) {
-                const regex = new RegExp(`(^|[^a-zA-Z'])${phrase}($|[^a-zA-Z'])`, 'gi');
+                const regex = new RegExp(`(^|[^a-zA-Z'’])${phrase}($|[^a-zA-Z'’])`, 'gi');
                 text = text.replace(regex, (match, p1, p2) => `${p1}__PHRASE_${phrase.replace(/ /g, "_")}_[${phrase}]__${p2}`);
             }
         });
 
-        // テキスト分割（単語/空欄/タグ/それ以外を厳密に分離）
-        let parts = text.split(/(__HOLE_\d+__|__PHRASE_.*?__|[a-zA-Z']+)/);
+        // アポストロフィ（全角・半角両方）を単語の一部として認識
+        let parts = text.split(/(__HOLE_\d+__|__PHRASE_.*?__|[a-zA-Z'’]+)/);
         let html = "";
         parts.forEach(part => {
             if (!part) return;
             if (part.match(/^__HOLE_(\d+)__$/)) {
-                const n = part.match(/\d+/)[0];
-                html += `<span class="drop-zone" id="zone-${n}" data-ans-num="${n}"></span>`;
+                html += `<span class="drop-zone" id="zone-${part.match(/\d+/)[0]}" data-ans-num="${part.match(/\d+/)[0]}"></span>`;
             } else if (part.match(/^__PHRASE_(.*?)_\[(.*?)\]__$/)) {
                 const m = part.match(/^__PHRASE_(.*?)_\[(.*?)\]__$/);
-                const key = m[1].replace(/_/g, " ").toLowerCase();
-                html += `<span class="clickable-word" onclick="showDict(event, '${key}')">${m[2]}</span>`;
-            } else if (part.match(/^[a-zA-Z']+$/)) {
-                const low = part.toLowerCase();
-                if (dictionary[low]) {
-                    html += `<span class="clickable-word" onclick="showDict(event, '${low}')">${part}</span>`;
-                } else {
-                    html += part;
-                }
+                html += `<span class="clickable-word" onclick="showDict(event, '${m[1].replace(/_/g, " ")}')">${m[2]}</span>`;
+            } else if (part.match(/^[a-zA-Z'’]+$/)) {
+                // 照合時に全角アポストロフィを半角に変換
+                const low = part.toLowerCase().replace(/’/g, "'");
+                if (dictionary[low]) html += `<span class="clickable-word" onclick="showDict(event, '${low}')">${part}</span>`;
+                else html += part;
             } else {
-                html += part; // 記号やスペース
+                html += part;
             }
         });
         qArea.innerHTML = html;
 
-        // 語群生成
         let words = [];
         for(let i=1; i<=10; i++) if(item['ans'+i]) words.push(item['ans'+i].toString().trim());
         if (item.dummy) words = words.concat(item.dummy.toString().split(',').map(d => d.trim()));
-        words.sort(() => Math.random() - 0.5);
-        words.forEach(w => {
+        words.sort(() => Math.random() - 0.5).forEach(w => {
             if(!w) return;
             const chip = document.createElement('div');
             chip.className = 'word-chip'; chip.draggable = true; chip.innerText = w;
-            chip.addEventListener('dragstart', e => draggedElement = chip);
+            chip.ondragstart = () => draggedElement = chip;
             bank.appendChild(chip);
         });
         setupDropZones();
     }
 
     function showDict(event, key) {
-        event.stopPropagation(); // 親要素へのクリック伝播を止める
-        
-        const data = dictionary[key.toLowerCase()];
+        event.stopPropagation();
+        // 念のためここでもアポストロフィを半角に統一
+        const cleanKey = key.toLowerCase().replace(/’/g, "'");
+        const data = dictionary[cleanKey];
         if (!data) return;
 
         const tooltip = document.getElementById('word-tooltip');
-        const readStr = data.read ? `<span class="tooltip-read">${data.read}</span>` : "";
-        tooltip.innerHTML = `${readStr}${data.mean}`;
-        
+        tooltip.innerHTML = (data.read ? `<span class="tooltip-read">${data.read}</span>` : "") + data.mean;
         tooltip.style.display = 'block';
         
         const rect = event.target.getBoundingClientRect();
-        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
-        const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
-
-        // 位置調整: 単語の真ん中、かつ少し上に
-        tooltip.style.left = (rect.left + scrollX + (rect.width / 2)) + 'px';
-        tooltip.style.top = (rect.top + scrollY - tooltip.offsetHeight - 10) + 'px';
+        tooltip.style.left = (rect.left + window.pageXOffset + (rect.width / 2)) + 'px';
+        tooltip.style.top = (rect.top + window.pageYOffset - tooltip.offsetHeight - 10) + 'px';
         
         if (hideTimeout) clearTimeout(hideTimeout);
         hideTimeout = setTimeout(() => { tooltip.style.display = 'none'; }, 3000);
     }
 
-    // 画面のどこかを触ったらツールチップを消す
-    document.addEventListener('click', () => {
-        document.getElementById('word-tooltip').style.display = 'none';
-    });
+    document.onclick = () => document.getElementById('word-tooltip').style.display = 'none';
 
     function setupDropZones() {
-        const zones = document.querySelectorAll('.drop-zone');
-        zones.forEach(zone => {
-            zone.addEventListener('dragover', e => e.preventDefault());
-            zone.addEventListener('drop', e => {
+        document.querySelectorAll('.drop-zone').forEach(zone => {
+            zone.ondragover = e => e.preventDefault();
+            zone.ondrop = e => {
                 e.preventDefault();
                 if(zone.firstChild) document.getElementById('word-bank').appendChild(zone.firstChild);
                 zone.appendChild(draggedElement);
-            });
+            };
         });
     }
 
@@ -226,17 +183,13 @@
         let allCorrect = true;
         zones.forEach(zone => {
             if(!zone.firstChild) { allCorrect = false; return; }
-            const num = zone.dataset.ansNum;
             const user = zone.firstChild.innerText.trim().toLowerCase();
-            const correct = currentData['ans'+num].toString().trim().toLowerCase();
+            const correct = currentData['ans'+zone.dataset.ansNum].toString().trim().toLowerCase();
             if(user === correct) {
                 zone.className = 'drop-zone correct'; zone.firstChild.draggable = false;
             } else {
                 zone.classList.add('incorrect');
-                setTimeout(() => { 
-                    if(zone.firstChild) document.getElementById('word-bank').appendChild(zone.firstChild);
-                    zone.className = 'drop-zone';
-                }, 800);
+                setTimeout(() => { if(zone.firstChild) document.getElementById('word-bank').appendChild(zone.firstChild); zone.className = 'drop-zone'; }, 800);
                 allCorrect = false;
             }
         });
