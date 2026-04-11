@@ -16,39 +16,42 @@
 
         .game-screen { display: none; }
         .info-bar { display: flex; justify-content: space-between; color: #666; margin-bottom: 15px; font-size: 0.9rem; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }
+        
+        /* 英文エリア：行間を3.5倍にして重なりを防止 */
         .question-text { font-size: 1.25rem; line-height: 3.5; margin-bottom: 30px; padding: 25px; border: 1px solid #eee; border-radius: 12px; background: #fff; white-space: pre-wrap; }
         
-        /* 辞書単語 */
         .clickable-word { cursor: pointer; border-bottom: 1px dashed #3498db; color: #2980b9; padding: 0 1px; }
         .clickable-word:hover { background-color: #fff9c4; }
 
-        /* ツールチップ */
         #word-tooltip {
             position: absolute; display: none; background: rgba(0,0,0,0.9); color: #fff;
             padding: 10px 15px; border-radius: 8px; font-size: 0.95rem; z-index: 2000;
             pointer-events: none; text-align: center; min-width: 140px; transform: translateX(-50%);
         }
 
-        /* 空欄のスタイル */
+        /* 空欄のズレ修正：inline-flexとvertical-alignで高さを固定 */
         .hole-zone {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             min-width: 90px;
-            padding: 0 5px;
-            border-bottom: 3px solid #ccc;
+            height: 1.4em; /* 文字の高さに合わせる */
+            padding: 0 8px;
+            border-bottom: 2px solid #ccc;
             margin: 0 4px;
-            text-align: center;
             background: rgba(0,0,0,0.03);
             cursor: pointer;
             font-size: inherit;
-            min-height: 1.2em;
-            vertical-align: bottom;
+            vertical-align: middle;
+            position: relative;
+            top: -1px; /* 微調整 */
+            transition: all 0.2s;
         }
-        .hole-zone.active { border-bottom-color: var(--primary); background: rgba(52, 152, 219, 0.1); }
-        .hole-zone.filled { border-bottom-style: none; background: transparent; }
+        .hole-zone.active { border-bottom: 2px solid var(--primary); background: rgba(52, 152, 219, 0.1); }
+        .hole-zone.filled { border-bottom-color: transparent; background: transparent; }
         .hole-zone.correct { color: var(--success); font-weight: bold; }
-        .hole-zone.incorrect { color: var(--error); border-bottom: 3px solid var(--error); }
+        .hole-zone.incorrect { color: var(--error); border-bottom: 2px solid var(--error); }
 
-        /* 語群 */
         .word-bank { display: flex; flex-wrap: wrap; gap: 10px; padding: 20px; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 12px; min-height: 60px; justify-content: center; }
         .word-chip { padding: 8px 18px; background: white; border: 1px solid #ced4da; border-radius: 20px; cursor: pointer; font-size: 1.1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .word-chip.used { opacity: 0.2; cursor: default; }
@@ -84,7 +87,7 @@
 </div>
 
 <script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycbzBLaQcfM0Eeh5CR94p4-dashJpUzaGedmNvCV4XZhauc2qY8VTMQPJgsWHSiTokRQE/exec'; // ★ここにURLを貼る
+    const API_URL = 'https://script.google.com/macros/s/AKfycbzBLaQcfM0Eeh5CR94p4-dashJpUzaGedmNvCV4XZhauc2qY8VTMQPJgsWHSiTokRQE/exec'; // ★デプロイした最新のURLを貼り付けてください
     let allQuestions = [], dictionary = {}, filteredQuestions = [], currentData = null, hideTimeout = null;
     let activeHoleNum = null, questionWords = [];
 
@@ -131,10 +134,9 @@
 
     function renderQuestion(item) {
         const qArea = document.getElementById('question-area');
-        // 一旦プレーンテキストとして取得し、空欄マーカーを一時的な記号に置換
+        // HTMLタグが文字列として表示されないよう、特殊マーカーを介して要素を生成
         let text = item.text.replace(/[\(（](\d+)[\)）]/g, "___HOLE_$1___");
 
-        // 熟語の処理
         const dictKeys = Object.keys(dictionary).sort((a, b) => b.length - a.length);
         dictKeys.forEach(phrase => {
             if (phrase.includes(" ")) {
@@ -146,28 +148,43 @@
             }
         });
 
-        // 最後に一気にHTMLを組み立てる
         let parts = text.split(/(___HOLE_\d+___|__PHRASE_.*?__|[a-zA-Z'’]+)/);
-        let finalHtml = "";
+        qArea.innerHTML = ""; // クリア
         
         parts.forEach(part => {
             if (!part) return;
             if (part.startsWith("___HOLE_")) {
                 const num = part.match(/\d+/)[0];
-                finalHtml += `<span class="hole-zone" id="hole-${num}" data-hole-num="${num}" onclick="setActiveHole(${num})"></span>`;
+                const span = document.createElement('span');
+                span.className = 'hole-zone';
+                span.id = `hole-${num}`;
+                span.dataset.holeNum = num;
+                span.onclick = () => setActiveHole(num);
+                qArea.appendChild(span);
             } else if (part.startsWith("__PHRASE_")) {
                 const m = part.match(/^__PHRASE_(.*?)_\[(.*?)\]__$/);
                 const key = m[1].replace(/_/g, " ").toLowerCase();
-                finalHtml += `<span class="clickable-word" onclick="showDict(event, '${key.replace(/'/g, "\\'")}')">${m[2]}</span>`;
+                const span = document.createElement('span');
+                span.className = 'clickable-word';
+                span.innerText = m[2];
+                span.onclick = (e) => showDict(e, key.replace(/'/g, "\\'"));
+                qArea.appendChild(span);
             } else if (part.match(/^[a-zA-Z'’]+$/)) {
                 const key = part.toLowerCase().replace(/’/g, "'");
                 if (dictionary[key]) {
-                    finalHtml += `<span class="clickable-word" onclick="showDict(event, '${key.replace(/'/g, "\\'")}')">${part}</span>`;
-                } else { finalHtml += part; }
-            } else { finalHtml += part; }
+                    const span = document.createElement('span');
+                    span.className = 'clickable-word';
+                    span.innerText = part;
+                    span.onclick = (e) => showDict(e, key.replace(/'/g, "\\'"));
+                    qArea.appendChild(span);
+                } else {
+                    qArea.appendChild(document.createTextNode(part));
+                }
+            } else {
+                qArea.appendChild(document.createTextNode(part));
+            }
         });
 
-        qArea.innerHTML = finalHtml;
         generateWordBank(item);
     }
 
