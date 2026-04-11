@@ -94,7 +94,7 @@
 </div>
 
 <script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycbxf9NosojkSfi2Ppp2vqeaJXvYuiQYeob7IuaiPtTxgNNltF0_ChJFkKyKmAcqAZjoq/exec'; // ★ここを差し替え
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyrYHt2yIuROMsRk4dxBvTF-auAsnWe_IoNBKnkqvJW2klM0UiD9QI8VcnR7lYY6cU_/exec'; // ★ここを差し替え
     let allQuestions = [], dictionary = {}, filteredQuestions = [], currentData = null, draggedElement = null, hideTimeout = null;
 
     async function init() {
@@ -208,4 +208,54 @@
             zone.ondragover = e => e.preventDefault();
             zone.ondrop = e => {
                 e.preventDefault();
-                if(zone.classList
+                if(zone.classList.contains('correct')) return; // 正解済みなら受け付けない
+                if(zone.firstChild) document.getElementById('word-bank').appendChild(zone.firstChild);
+                zone.appendChild(draggedElement);
+                zone.classList.remove('incorrect');
+            };
+        });
+    }
+
+    function checkAnswers() {
+        const zones = document.querySelectorAll('.drop-zone');
+        let allCorrect = true;
+        
+        zones.forEach(zone => {
+            if(!zone.firstChild) { allCorrect = false; return; }
+            const user = zone.firstChild.innerText.trim().toLowerCase();
+            const correct = currentData['ans'+zone.dataset.ansNum].toString().trim().toLowerCase();
+            
+            if(user === correct) {
+                // 正解の場合：クラスを固定してドラッグ不可にする
+                zone.classList.add('correct');
+                zone.classList.remove('incorrect');
+                zone.firstChild.draggable = false;
+            } else {
+                // 不正解の場合：赤くして、少し後にバンクに戻す
+                zone.classList.add('incorrect');
+                allCorrect = false;
+                setTimeout(() => { 
+                    if(zone.firstChild && !zone.classList.contains('correct')) {
+                        document.getElementById('word-bank').appendChild(zone.firstChild);
+                        zone.classList.remove('incorrect');
+                    }
+                }, 1000);
+            }
+        });
+
+        if(allCorrect && zones.length > 0) {
+            document.getElementById('game-msg').innerHTML = "<span style='color:var(--success);'>Excellent! Correct Answer!</span>";
+            setTimeout(loadNextQuestion, 2500);
+        }
+    }
+
+    function showHome() {
+        document.getElementById('home-screen').style.display = 'block';
+        document.getElementById('game-screen').style.display = 'none';
+        document.getElementById('game-msg').innerText = "";
+    }
+
+    init();
+</script>
+</body>
+</html>
