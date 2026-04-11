@@ -57,7 +57,7 @@
 </div>
 
 <script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycbyfrm9Yir-0ytH87N3QnocqJmA6YtQIOxJ8DHlsi3Ab48yUwMzmL1-tdq9yZup5gb3P/exec'; // ★ここにURLを貼る
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyWrgt432M1w_jaJKQlDJSKP5m9hoYM6HrG9xNTRlsjoMO8N7tXGz4tF_jfjUF6yjL-/exec'; // ★ここにご自身のURLを貼ってください
     let allQuestions = [], dictionary = {}, filteredQuestions = [], currentData = null, draggedElement = null, hideTimeout = null;
 
     async function init() {
@@ -85,7 +85,7 @@
         const gV = document.getElementById('grammar-select').value;
         const lV = document.getElementById('level-select').value;
         filteredQuestions = allQuestions.filter(q => (gV === 'all' || q.grammar == gV) && (lV === 'all' || q.level == lV));
-        if (filteredQuestions.length === 0) return alert("問題がありません");
+        if (filteredQuestions.length === 0) return alert("該当する問題がありません！");
         document.getElementById('home-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'block';
         loadNextQuestion();
@@ -96,6 +96,11 @@
         document.getElementById('info-grammar').innerText = `ターゲット: ${currentData.grammar}`;
         document.getElementById('info-level').innerText = `レベル: ${currentData.level}`;
         renderQuestion(currentData);
+    }
+
+    // アポストロフィをHTMLの属性内で安全に扱うための関数
+    function escapeHtml(str) {
+        return str.replace(/'/g, "\\'");
     }
 
     function renderQuestion(item) {
@@ -112,7 +117,6 @@
             }
         });
 
-        // アポストロフィ（全角・半角両方）を単語の一部として認識
         let parts = text.split(/(__HOLE_\d+__|__PHRASE_.*?__|[a-zA-Z'’]+)/);
         let html = "";
         parts.forEach(part => {
@@ -121,12 +125,17 @@
                 html += `<span class="drop-zone" id="zone-${part.match(/\d+/)[0]}" data-ans-num="${part.match(/\d+/)[0]}"></span>`;
             } else if (part.match(/^__PHRASE_(.*?)_\[(.*?)\]__$/)) {
                 const m = part.match(/^__PHRASE_(.*?)_\[(.*?)\]__$/);
-                html += `<span class="clickable-word" onclick="showDict(event, '${m[1].replace(/_/g, " ")}')">${m[2]}</span>`;
+                const key = m[1].replace(/_/g, " ").toLowerCase().replace(/’/g, "'");
+                // エスケープ処理を追加
+                html += `<span class="clickable-word" onclick="showDict(event, '${escapeHtml(key)}')">${m[2]}</span>`;
             } else if (part.match(/^[a-zA-Z'’]+$/)) {
-                // 照合時に全角アポストロフィを半角に変換
                 const low = part.toLowerCase().replace(/’/g, "'");
-                if (dictionary[low]) html += `<span class="clickable-word" onclick="showDict(event, '${low}')">${part}</span>`;
-                else html += part;
+                if (dictionary[low]) {
+                    // エスケープ処理を追加
+                    html += `<span class="clickable-word" onclick="showDict(event, '${escapeHtml(low)}')">${part}</span>`;
+                } else {
+                    html += part;
+                }
             } else {
                 html += part;
             }
@@ -148,7 +157,6 @@
 
     function showDict(event, key) {
         event.stopPropagation();
-        // 念のためここでもアポストロフィを半角に統一
         const cleanKey = key.toLowerCase().replace(/’/g, "'");
         const data = dictionary[cleanKey];
         if (!data) return;
@@ -202,6 +210,7 @@
     function showHome() {
         document.getElementById('home-screen').style.display = 'block';
         document.getElementById('game-screen').style.display = 'none';
+        document.getElementById('game-msg').innerText = "";
     }
 
     init();
