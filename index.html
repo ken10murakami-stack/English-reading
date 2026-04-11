@@ -21,7 +21,7 @@
         .progress-bar-bg { width: 100px; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-left: 10px; align-self: center; }
         .progress-bar-fill { height: 100%; background: var(--success); }
 
-        /* JSON保存・読込ボタンのスタイル */
+        /* JSON保存・読込ボタン */
         .storage-controls { margin-top: 15px; display: flex; justify-content: center; gap: 10px; }
         .btn-storage { background: #95a5a6; color: white; padding: 8px 15px; border-radius: 5px; border: none; font-size: 0.8rem; cursor: pointer; transition: 0.2s; }
         .btn-storage:hover { opacity: 0.8; }
@@ -70,15 +70,12 @@
             <select id="level-select" onchange="updateProgressDisplay()"><option value="all">すべてのレベル</option></select>
             <button class="start-btn" onclick="startLesson()">学習をはじめる</button>
         </div>
-        
         <div id="progress-area" class="progress-container">達成率を計算中...</div>
-
         <div class="storage-controls">
             <button class="btn-storage" onclick="saveProgressAsJSON()">JSONで保存</button>
             <button class="btn-storage" onclick="document.getElementById('upload-input').click()">JSONを読み込み</button>
             <input type="file" id="upload-input" style="display:none" accept=".json" onchange="loadProgressFromJSON(event)">
         </div>
-
         <div id="status-msg" style="margin-top:10px;">データを読み込み中...</div>
     </div>
 
@@ -96,10 +93,9 @@
 </div>
 
 <script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycbzKrD1pxPNaf4-PUXJDphk7NnbBD0cX77ouiw9Lgtph51mCOG7zaqguFUVR4dEVei0g/exec'; // ★デプロイURLを貼り付け
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyDuBRYj2B32y1sprC37z7f5Zqm4iG-GbGcKo4_NPK9oLsEI8HAaO54SGuuMwm3eHKb/exec'; 
     let allQuestions = [], dictionary = {}, filteredQuestions = [], currentData = null, hideTimeout = null;
     let activeHoleNum = null, questionWords = [];
-
     let solvedIds = JSON.parse(localStorage.getItem('solved_questions') || "[]");
 
     async function init() {
@@ -128,39 +124,25 @@
         const selectedLevel = document.getElementById('level-select').value;
         const progressArea = document.getElementById('progress-area');
         progressArea.innerHTML = `<strong>【${selectedLevel === 'all' ? '全レベル' : 'レベル ' + selectedLevel}】達成率</strong><br>`;
-        
         const targetQuestions = allQuestions.filter(q => selectedLevel === 'all' || q.level == selectedLevel);
         const grammars = [...new Set(targetQuestions.map(q => q.grammar))].filter(g => g);
-
         grammars.forEach(g => {
             const qsInGrammar = targetQuestions.filter(q => q.grammar === g);
             const solvedInGrammar = qsInGrammar.filter(q => solvedIds.includes(q.id));
             const percent = Math.round((solvedInGrammar.length / qsInGrammar.length) * 100) || 0;
-            
-            progressArea.innerHTML += `
-                <div class="progress-item">
-                    <span>${g} (${solvedInGrammar.length}/${qsInGrammar.length})</span>
-                    <div style="display:flex;">
-                        <span>${percent}%</span>
-                        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${percent}%"></div></div>
-                    </div>
-                </div>`;
+            progressArea.innerHTML += `<div class="progress-item"><span>${g} (${solvedInGrammar.length}/${qsInGrammar.length})</span><div style="display:flex;"><span>${percent}%</span><div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${percent}%"></div></div></div></div>`;
         });
     }
 
-    // JSONとして保存（エクスポート）
     function saveProgressAsJSON() {
         const dataStr = JSON.stringify({ solved_questions: solvedIds }, null, 2);
         const blob = new Blob([dataStr], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
-        link.href = url;
-        link.download = "english_app_progress.json";
-        link.click();
+        link.href = url; link.download = "english_app_progress.json"; link.click();
         URL.revokeObjectURL(url);
     }
 
-    // JSONから読み込み（インポート）
     function loadProgressFromJSON(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -172,9 +154,9 @@
                     solvedIds = json.solved_questions;
                     localStorage.setItem('solved_questions', JSON.stringify(solvedIds));
                     updateProgressDisplay();
-                    alert("達成率を読み込みました！");
+                    alert("読み込みました！");
                 }
-            } catch (err) { alert("無効なJSONファイルです。"); }
+            } catch (err) { alert("エラーが発生しました。"); }
         };
         reader.readAsText(file);
     }
@@ -204,6 +186,8 @@
     function renderQuestion(item) {
         const qArea = document.getElementById('question-area');
         let text = item.text.replace(/[\(（](\d+)[\)）]/g, "___HOLE_$1___");
+        
+        // 熟語マッチング
         const dictKeys = Object.keys(dictionary).sort((a, b) => b.length - a.length);
         dictKeys.forEach(phrase => {
             if (phrase.includes(" ")) {
@@ -214,8 +198,11 @@
                 });
             }
         });
+
+        // 修正：単語の分割ルールにアポストロフィ(' ’)を含める
         let parts = text.split(/(___HOLE_\d+___|__PHRASE_.*?__|[a-zA-Z'’]+)/);
         qArea.innerHTML = "";
+        
         parts.forEach(part => {
             if (!part) return;
             if (part.startsWith("___HOLE_")) {
@@ -229,14 +216,15 @@
                 const key = m[1].replace(/_/g, " ").toLowerCase();
                 const span = document.createElement('span');
                 span.className = 'clickable-word'; span.innerText = m[2];
-                span.onclick = (e) => showDict(e, key.replace(/'/g, "\\'"));
+                span.onclick = (e) => showDict(e, key);
                 qArea.appendChild(span);
             } else if (part.match(/^[a-zA-Z'’]+$/)) {
-                const key = part.toLowerCase().replace(/’/g, "'");
+                // 比較用にアポストロフィを半角に統一
+                const key = part.toLowerCase().replace(/[’]/g, "'");
                 if (dictionary[key]) {
                     const span = document.createElement('span');
                     span.className = 'clickable-word'; span.innerText = part;
-                    span.onclick = (e) => showDict(e, key.replace(/'/g, "\\'"));
+                    span.onclick = (e) => showDict(e, key);
                     qArea.appendChild(span);
                 } else { qArea.appendChild(document.createTextNode(part)); }
             } else { qArea.appendChild(document.createTextNode(part)); }
@@ -280,7 +268,10 @@
 
     function showDict(event, key) {
         event.stopPropagation();
-        const data = dictionary[key]; if (!data) return;
+        // 念のため引数のキーのアポストロフィも統一
+        const cleanKey = key.toLowerCase().replace(/[’]/g, "'");
+        const data = dictionary[cleanKey]; 
+        if (!data) return;
         const tooltip = document.getElementById('word-tooltip');
         tooltip.innerHTML = (data.read ? `<small>${data.read}</small><br>` : "") + data.mean;
         tooltip.style.display = 'block';
@@ -296,8 +287,8 @@
         let allCorrect = true;
         holes.forEach(hole => {
             if (!hole.classList.contains('filled')) { allCorrect = false; return; }
-            const user = hole.innerText.toLowerCase();
-            const correct = currentData['ans'+hole.dataset.holeNum].toString().toLowerCase();
+            const user = hole.innerText.toLowerCase().trim();
+            const correct = currentData['ans'+hole.dataset.holeNum].toString().toLowerCase().trim();
             if (user === correct) { hole.classList.add('correct'); hole.classList.remove('incorrect'); }
             else { 
                 hole.classList.add('incorrect'); allCorrect = false;
