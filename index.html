@@ -57,7 +57,7 @@
 </div>
 
 <script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycbyWrgt432M1w_jaJKQlDJSKP5m9hoYM6HrG9xNTRlsjoMO8N7tXGz4tF_jfjUF6yjL-/exec'; // ★ここにご自身のURLを貼ってください
+    const API_URL = 'https://script.google.com/macros/s/AKfycbz9kpmLZGXq-rNVkO07NLa9kf2VtTCNv_-oDrRgBVrc31Whj0OXobNkHh4fLtV-DhnF/exec'; // ★ここにURLを貼る
     let allQuestions = [], dictionary = {}, filteredQuestions = [], currentData = null, draggedElement = null, hideTimeout = null;
 
     async function init() {
@@ -85,7 +85,7 @@
         const gV = document.getElementById('grammar-select').value;
         const lV = document.getElementById('level-select').value;
         filteredQuestions = allQuestions.filter(q => (gV === 'all' || q.grammar == gV) && (lV === 'all' || q.level == lV));
-        if (filteredQuestions.length === 0) return alert("該当する問題がありません！");
+        if (filteredQuestions.length === 0) return alert("該当する問題がありません");
         document.getElementById('home-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'block';
         loadNextQuestion();
@@ -98,7 +98,6 @@
         renderQuestion(currentData);
     }
 
-    // アポストロフィをHTMLの属性内で安全に扱うための関数
     function escapeHtml(str) {
         return str.replace(/'/g, "\\'");
     }
@@ -107,32 +106,42 @@
         const qArea = document.getElementById('question-area');
         const bank = document.getElementById('word-bank');
         bank.innerHTML = "";
+        
+        // 元の文章を取得（ここで大文字・小文字を維持）
         let text = item.text.replace(/[\(（](\d+)[\)）]/g, "__HOLE_$1__");
 
+        // 熟語判定（辞書内の熟語も念のため小文字で照合）
         const dictKeys = Object.keys(dictionary).sort((a, b) => b.length - a.length);
         dictKeys.forEach(phrase => {
             if (phrase.includes(" ")) {
                 const regex = new RegExp(`(^|[^a-zA-Z'’])${phrase}($|[^a-zA-Z'’])`, 'gi');
-                text = text.replace(regex, (match, p1, p2) => `${p1}__PHRASE_${phrase.replace(/ /g, "_")}_[${phrase}]__${p2}`);
+                text = text.replace(regex, (match, p1, p2) => {
+                    // match 自体は元のケース（大文字含む）を保持している
+                    // phrase は辞書のキー（小文字）
+                    const foundText = match.slice(p1.length, match.length - p2.length);
+                    return `${p1}__PHRASE_${phrase.replace(/ /g, "_")}_[${foundText}]__${p2}`;
+                });
             }
         });
 
         let parts = text.split(/(__HOLE_\d+__|__PHRASE_.*?__|[a-zA-Z'’]+)/);
         let html = "";
+        
         parts.forEach(part => {
             if (!part) return;
+            
             if (part.match(/^__HOLE_(\d+)__$/)) {
                 html += `<span class="drop-zone" id="zone-${part.match(/\d+/)[0]}" data-ans-num="${part.match(/\d+/)[0]}"></span>`;
             } else if (part.match(/^__PHRASE_(.*?)_\[(.*?)\]__$/)) {
                 const m = part.match(/^__PHRASE_(.*?)_\[(.*?)\]__$/);
                 const key = m[1].replace(/_/g, " ").toLowerCase().replace(/’/g, "'");
-                // エスケープ処理を追加
-                html += `<span class="clickable-word" onclick="showDict(event, '${escapeHtml(key)}')">${m[2]}</span>`;
+                const originalDisplay = m[2]; // ここに元の表示（大文字小文字含む）が入る
+                html += `<span class="clickable-word" onclick="showDict(event, '${escapeHtml(key)}')">${originalDisplay}</span>`;
             } else if (part.match(/^[a-zA-Z'’]+$/)) {
-                const low = part.toLowerCase().replace(/’/g, "'");
-                if (dictionary[low]) {
-                    // エスケープ処理を追加
-                    html += `<span class="clickable-word" onclick="showDict(event, '${escapeHtml(low)}')">${part}</span>`;
+                // 辞書引き用に小文字化。表示（part）は大文字のまま使う
+                const searchKey = part.toLowerCase().replace(/’/g, "'");
+                if (dictionary[searchKey]) {
+                    html += `<span class="clickable-word" onclick="showDict(event, '${escapeHtml(searchKey)}')">${part}</span>`;
                 } else {
                     html += part;
                 }
@@ -157,8 +166,7 @@
 
     function showDict(event, key) {
         event.stopPropagation();
-        const cleanKey = key.toLowerCase().replace(/’/g, "'");
-        const data = dictionary[cleanKey];
+        const data = dictionary[key];
         if (!data) return;
 
         const tooltip = document.getElementById('word-tooltip');
