@@ -9,16 +9,27 @@
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; color: var(--text); -webkit-tap-highlight-color: transparent; }
         .container { max-width: 850px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); position: relative; }
         
+        /* ホーム画面 */
         .home-screen { text-align: center; }
         .filter-group { margin: 25px 0; display: flex; flex-direction: column; gap: 15px; align-items: center; }
         select { padding: 12px; width: 280px; border-radius: 8px; border: 1px solid #ddd; font-size: 1rem; background: white; }
         .start-btn { background: var(--success); color: white; padding: 15px 50px; font-size: 1.2rem; border: none; border-radius: 30px; cursor: pointer; font-weight: bold; }
+        
+        /* 達成率表示エリア */
+        .progress-container { margin-top: 20px; text-align: left; background: #fff; border: 1px solid #eee; padding: 15px; border-radius: 10px; font-size: 0.9rem; max-height: 250px; overflow-y: auto; }
+        .progress-item { display: flex; justify-content: space-between; margin-bottom: 5px; border-bottom: 1px solid #f9f9f9; padding-bottom: 3px; }
+        .progress-bar-bg { width: 100px; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-left: 10px; align-self: center; }
+        .progress-bar-fill { height: 100%; background: var(--success); }
 
+        /* JSON保存・読込ボタンのスタイル */
+        .storage-controls { margin-top: 15px; display: flex; justify-content: center; gap: 10px; }
+        .btn-storage { background: #95a5a6; color: white; padding: 8px 15px; border-radius: 5px; border: none; font-size: 0.8rem; cursor: pointer; transition: 0.2s; }
+        .btn-storage:hover { opacity: 0.8; }
+
+        /* ゲーム画面 */
         .game-screen { display: none; }
         .info-bar { display: flex; justify-content: space-between; color: #666; margin-bottom: 15px; font-size: 0.9rem; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }
-        
         .question-text { font-size: 1.25rem; line-height: 3.5; margin-bottom: 30px; padding: 25px; border: 1px solid #eee; border-radius: 12px; background: #fff; white-space: pre-wrap; }
-        
         .clickable-word { cursor: pointer; border-bottom: 1px dashed #3498db; color: #2980b9; padding: 0 1px; }
         .clickable-word:hover { background-color: #fff9c4; }
 
@@ -29,21 +40,10 @@
         }
 
         .hole-zone {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 90px;
-            height: 1.4em;
-            padding: 0 8px;
-            border-bottom: 2px solid #ccc;
-            margin: 0 4px;
-            background: rgba(0,0,0,0.03);
-            cursor: pointer;
-            font-size: inherit;
-            vertical-align: middle;
-            position: relative;
-            top: -1px;
-            transition: all 0.2s;
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 90px; height: 1.4em; padding: 0 8px; border-bottom: 2px solid #ccc;
+            margin: 0 4px; background: rgba(0,0,0,0.03); cursor: pointer; font-size: inherit;
+            vertical-align: middle; position: relative; top: -1px; transition: all 0.2s;
         }
         .hole-zone.active { border-bottom: 2px solid var(--primary); background: rgba(52, 152, 219, 0.1); }
         .hole-zone.filled { border-bottom-color: transparent; background: transparent; }
@@ -56,6 +56,7 @@
 
         .controls { text-align: center; margin-top: 30px; }
         .btn-check { background: var(--primary); color: white; padding: 12px 45px; border-radius: 30px; border: none; font-size: 1.1rem; cursor: pointer; font-weight: bold; }
+        .btn-next { background: var(--success); color: white; padding: 12px 45px; border-radius: 30px; border: none; font-size: 1.1rem; cursor: pointer; font-weight: bold; display: none; }
     </style>
 </head>
 <body>
@@ -66,10 +67,19 @@
         <h1>📝 English Reading App</h1>
         <div class="filter-group">
             <select id="grammar-select"><option value="all">すべての文法</option></select>
-            <select id="level-select"><option value="all">すべてのレベル</option></select>
+            <select id="level-select" onchange="updateProgressDisplay()"><option value="all">すべてのレベル</option></select>
             <button class="start-btn" onclick="startLesson()">学習をはじめる</button>
         </div>
-        <div id="status-msg">データを読み込み中...</div>
+        
+        <div id="progress-area" class="progress-container">達成率を計算中...</div>
+
+        <div class="storage-controls">
+            <button class="btn-storage" onclick="saveProgressAsJSON()">JSONで保存</button>
+            <button class="btn-storage" onclick="document.getElementById('upload-input').click()">JSONを読み込み</button>
+            <input type="file" id="upload-input" style="display:none" accept=".json" onchange="loadProgressFromJSON(event)">
+        </div>
+
+        <div id="status-msg" style="margin-top:10px;">データを読み込み中...</div>
     </div>
 
     <div id="game-screen" class="game-screen">
@@ -78,25 +88,29 @@
         <div id="word-bank" class="word-bank"></div>
         <div class="controls">
             <div id="game-msg" style="margin-bottom:15px; min-height:1.5rem; font-weight:bold;"></div>
-            <button class="btn-check" onclick="checkAnswers()">答え合わせ</button><br>
+            <button id="check-btn" class="btn-check" onclick="checkAnswers()">答え合わせ</button>
+            <button id="next-btn" class="btn-next" onclick="loadNextQuestion()">次の問題へ ➔</button><br>
             <button onclick="showHome()" style="background:#95a5a6; color:white; border:none; padding:8px 20px; border-radius:5px; margin-top:20px; cursor:pointer;">戻る</button>
         </div>
     </div>
 </div>
 
 <script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycbzi7L6ifUZB4BqbllvcPQyB9Lp4JYcpuYwZ7k2_3Tnug_H8Eq_blpI5_NlyTUJMQdkz/exec'; // ★デプロイした最新のURLを貼り付けてください
+    const API_URL = 'https://script.google.com/macros/s/AKfycbzKrD1pxPNaf4-PUXJDphk7NnbBD0cX77ouiw9Lgtph51mCOG7zaqguFUVR4dEVei0g/exec'; // ★デプロイURLを貼り付け
     let allQuestions = [], dictionary = {}, filteredQuestions = [], currentData = null, hideTimeout = null;
     let activeHoleNum = null, questionWords = [];
+
+    let solvedIds = JSON.parse(localStorage.getItem('solved_questions') || "[]");
 
     async function init() {
         try {
             const res = await fetch(API_URL);
             const data = await res.json();
-            allQuestions = data.questions;
+            allQuestions = data.questions.map((q, i) => ({...q, id: q.id || `q-${i}`}));
             dictionary = data.dictionary;
             populateSelect('grammar-select', 'grammar');
             populateSelect('level-select', 'level');
+            updateProgressDisplay();
             document.getElementById('status-msg').innerText = "準備完了！";
         } catch (e) { document.getElementById('status-msg').innerText = "通信エラー"; }
     }
@@ -110,6 +124,61 @@
         });
     }
 
+    function updateProgressDisplay() {
+        const selectedLevel = document.getElementById('level-select').value;
+        const progressArea = document.getElementById('progress-area');
+        progressArea.innerHTML = `<strong>【${selectedLevel === 'all' ? '全レベル' : 'レベル ' + selectedLevel}】達成率</strong><br>`;
+        
+        const targetQuestions = allQuestions.filter(q => selectedLevel === 'all' || q.level == selectedLevel);
+        const grammars = [...new Set(targetQuestions.map(q => q.grammar))].filter(g => g);
+
+        grammars.forEach(g => {
+            const qsInGrammar = targetQuestions.filter(q => q.grammar === g);
+            const solvedInGrammar = qsInGrammar.filter(q => solvedIds.includes(q.id));
+            const percent = Math.round((solvedInGrammar.length / qsInGrammar.length) * 100) || 0;
+            
+            progressArea.innerHTML += `
+                <div class="progress-item">
+                    <span>${g} (${solvedInGrammar.length}/${qsInGrammar.length})</span>
+                    <div style="display:flex;">
+                        <span>${percent}%</span>
+                        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${percent}%"></div></div>
+                    </div>
+                </div>`;
+        });
+    }
+
+    // JSONとして保存（エクスポート）
+    function saveProgressAsJSON() {
+        const dataStr = JSON.stringify({ solved_questions: solvedIds }, null, 2);
+        const blob = new Blob([dataStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "english_app_progress.json";
+        link.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // JSONから読み込み（インポート）
+    function loadProgressFromJSON(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const json = JSON.parse(e.target.result);
+                if (json.solved_questions && Array.isArray(json.solved_questions)) {
+                    solvedIds = json.solved_questions;
+                    localStorage.setItem('solved_questions', JSON.stringify(solvedIds));
+                    updateProgressDisplay();
+                    alert("達成率を読み込みました！");
+                }
+            } catch (err) { alert("無効なJSONファイルです。"); }
+        };
+        reader.readAsText(file);
+    }
+
     function startLesson() {
         const gV = document.getElementById('grammar-select').value;
         const lV = document.getElementById('level-select').value;
@@ -121,6 +190,8 @@
     }
 
     function loadNextQuestion() {
+        document.getElementById('next-btn').style.display = 'none';
+        document.getElementById('check-btn').style.display = 'inline-block';
         document.getElementById('game-msg').innerText = "";
         activeHoleNum = null;
         questionWords = [];
@@ -133,7 +204,6 @@
     function renderQuestion(item) {
         const qArea = document.getElementById('question-area');
         let text = item.text.replace(/[\(（](\d+)[\)）]/g, "___HOLE_$1___");
-
         const dictKeys = Object.keys(dictionary).sort((a, b) => b.length - a.length);
         dictKeys.forEach(phrase => {
             if (phrase.includes(" ")) {
@@ -144,54 +214,41 @@
                 });
             }
         });
-
         let parts = text.split(/(___HOLE_\d+___|__PHRASE_.*?__|[a-zA-Z'’]+)/);
         qArea.innerHTML = "";
-        
         parts.forEach(part => {
             if (!part) return;
             if (part.startsWith("___HOLE_")) {
                 const num = part.match(/\d+/)[0];
                 const span = document.createElement('span');
-                span.className = 'hole-zone';
-                span.id = `hole-${num}`;
-                span.dataset.holeNum = num;
-                span.onclick = () => setActiveHole(num);
+                span.className = 'hole-zone'; span.id = `hole-${num}`; span.dataset.holeNum = num;
+                span.onclick = () => { if(document.getElementById('next-btn').style.display !== 'inline-block') setActiveHole(num); };
                 qArea.appendChild(span);
             } else if (part.startsWith("__PHRASE_")) {
                 const m = part.match(/^__PHRASE_(.*?)_\[(.*?)\]__$/);
                 const key = m[1].replace(/_/g, " ").toLowerCase();
                 const span = document.createElement('span');
-                span.className = 'clickable-word';
-                span.innerText = m[2];
+                span.className = 'clickable-word'; span.innerText = m[2];
                 span.onclick = (e) => showDict(e, key.replace(/'/g, "\\'"));
                 qArea.appendChild(span);
             } else if (part.match(/^[a-zA-Z'’]+$/)) {
                 const key = part.toLowerCase().replace(/’/g, "'");
                 if (dictionary[key]) {
                     const span = document.createElement('span');
-                    span.className = 'clickable-word';
-                    span.innerText = part;
+                    span.className = 'clickable-word'; span.innerText = part;
                     span.onclick = (e) => showDict(e, key.replace(/'/g, "\\'"));
                     qArea.appendChild(span);
-                } else {
-                    qArea.appendChild(document.createTextNode(part));
-                }
-            } else {
-                qArea.appendChild(document.createTextNode(part));
-            }
+                } else { qArea.appendChild(document.createTextNode(part)); }
+            } else { qArea.appendChild(document.createTextNode(part)); }
         });
-
         generateWordBank(item);
     }
 
     function generateWordBank(item) {
         const bank = document.getElementById('word-bank');
-        bank.innerHTML = "";
-        questionWords = [];
+        bank.innerHTML = ""; questionWords = [];
         for(let i=1; i<=10; i++) if(item['ans'+i]) questionWords.push({ word: item['ans'+i].toString().trim(), used: false });
         if (item.dummy) item.dummy.toString().split(',').forEach(d => { if(d.trim()) questionWords.push({ word: d.trim(), used: false }); });
-        
         questionWords.sort(() => Math.random() - 0.5).forEach((wordObj, i) => {
             const chip = document.createElement('div');
             chip.className = 'word-chip'; chip.innerText = wordObj.word; chip.id = `chip-${i}`;
@@ -210,16 +267,15 @@
             if(idx !== -1) { questionWords[idx].used = false; document.getElementById(`chip-${idx}`).classList.remove('used'); }
         }
         hole.classList.add('active'); activeHoleNum = num;
-        document.getElementById('game-msg').innerText = `(${num}) に入れる単語を選んでください`;
     }
 
     function selectWordForHole(idx) {
-        if (activeHoleNum === null || questionWords[idx].used) return;
+        if (activeHoleNum === null || questionWords[idx].used || document.getElementById('next-btn').style.display === 'inline-block') return;
         const hole = document.getElementById(`hole-${activeHoleNum}`);
         hole.innerText = questionWords[idx].word;
         hole.classList.add('filled'); hole.classList.remove('active');
         questionWords[idx].used = true; document.getElementById(`chip-${idx}`).classList.add('used');
-        activeHoleNum = null; document.getElementById('game-msg').innerText = "";
+        activeHoleNum = null;
     }
 
     function showDict(event, key) {
@@ -235,7 +291,6 @@
         hideTimeout = setTimeout(() => tooltip.style.display = 'none', 3000);
     }
 
-    // --- 修正箇所：正解後も単語を消さず、メッセージを表示して待機 ---
     function checkAnswers() {
         const holes = document.querySelectorAll('.hole-zone');
         let allCorrect = true;
@@ -243,15 +298,9 @@
             if (!hole.classList.contains('filled')) { allCorrect = false; return; }
             const user = hole.innerText.toLowerCase();
             const correct = currentData['ans'+hole.dataset.holeNum].toString().toLowerCase();
-            
-            if (user === correct) { 
-                hole.classList.add('correct'); 
-                hole.classList.remove('incorrect');
-            }
+            if (user === correct) { hole.classList.add('correct'); hole.classList.remove('incorrect'); }
             else { 
-                hole.classList.add('incorrect'); 
-                allCorrect = false;
-                // 不正解の場合は1.5秒後に空欄に戻す（学習を促すため）
+                hole.classList.add('incorrect'); allCorrect = false;
                 setTimeout(() => {
                     if (hole.classList.contains('incorrect')) {
                         const word = hole.innerText; hole.innerText = ""; hole.classList.remove('filled', 'incorrect');
@@ -263,15 +312,23 @@
         });
 
         if (allCorrect && holes.length > 0) {
-            // 全て正解のとき：単語は表示したまま、メッセージを出して2秒待機してから次へ
             document.getElementById('game-msg').innerHTML = "<span style='color:green'>Excellent! 正解です！</span>";
-            setTimeout(loadNextQuestion, 2000);
+            document.getElementById('check-btn').style.display = 'none';
+            document.getElementById('next-btn').style.display = 'inline-block';
+            if (!solvedIds.includes(currentData.id)) {
+                solvedIds.push(currentData.id);
+                localStorage.setItem('solved_questions', JSON.stringify(solvedIds));
+            }
         } else if (holes.length > 0) {
             document.getElementById('game-msg').innerHTML = "<span style='color:red'>間違いがあります。</span>";
         }
     }
 
-    function showHome() { document.getElementById('home-screen').style.display = 'block'; document.getElementById('game-screen').style.display = 'none'; }
+    function showHome() { 
+        updateProgressDisplay();
+        document.getElementById('home-screen').style.display = 'block'; 
+        document.getElementById('game-screen').style.display = 'none'; 
+    }
     document.onclick = () => document.getElementById('word-tooltip').style.display = 'none';
     init();
 </script>
