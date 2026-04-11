@@ -8,31 +8,61 @@
         :root { --primary: #3498db; --success: #27ae60; --error: #e74c3c; --bg: #f4f7f6; }
         body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; color: #333; }
         .container { max-width: 850px; margin: 0 auto; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); position: relative; }
+        
         .home-screen { text-align: center; }
         .filter-group { margin: 25px 0; display: flex; flex-direction: column; gap: 15px; align-items: center; }
         select { padding: 12px; width: 280px; border-radius: 8px; border: 1px solid #ddd; font-size: 1rem; background: white; }
         .start-btn { background: var(--success); color: white; padding: 15px 50px; font-size: 1.2rem; border: none; border-radius: 30px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+
         .game-screen { display: none; }
         .info-bar { display: flex; justify-content: space-between; color: #666; margin-bottom: 15px; font-size: 0.9rem; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }
         .question-text { font-size: 1.25rem; line-height: 2.8; margin-bottom: 30px; padding: 25px; border: 1px solid #eee; border-radius: 12px; background: #fff; white-space: pre-wrap; }
+        
+        /* 辞書単語 */
         .clickable-word { cursor: pointer; border-bottom: 1px dashed #3498db; transition: 0.2s; color: #2980b9; padding: 0 1px; }
         .clickable-word:hover { background-color: #fff9c4; }
+
+        /* ツールチップ */
         #word-tooltip {
             position: absolute; display: none; background: rgba(0,0,0,0.9); color: #fff;
             padding: 10px 15px; border-radius: 8px; font-size: 0.95rem; z-index: 2000;
-            pointer-events: none; text-align: center; min-width: 140px; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-            transform: translateX(-50%);
+            pointer-events: none; text-align: center; min-width: 140px; transform: translateX(-50%);
         }
         .tooltip-read { display: block; font-size: 0.75rem; color: #3498db; margin-bottom: 4px; font-weight: bold; }
-        .drop-zone { display: inline-block; min-width: 95px; height: 1.8rem; border-bottom: 2px solid var(--primary); margin: 0 4px; vertical-align: middle; text-align: center; background: #fdfdfd; }
+
+        /* ドロップエリアのサイズ調整 */
+        .drop-zone {
+            display: inline-block;
+            min-width: 80px;
+            height: auto;
+            border-bottom: 2px solid var(--primary);
+            margin: 0 4px;
+            vertical-align: baseline;
+            text-align: center;
+            background: #fafafa;
+            font-size: inherit;
+        }
+        .drop-zone .word-chip {
+            display: inline;
+            padding: 0 5px;
+            background: none;
+            border: none;
+            font-size: inherit;
+            box-shadow: none;
+            cursor: default;
+        }
         .drop-zone.correct { border-bottom-color: var(--success); color: var(--success); font-weight: bold; }
+        .drop-zone.incorrect { border-bottom-color: var(--error); }
+
         .word-bank { display: flex; flex-wrap: wrap; gap: 10px; padding: 20px; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 12px; min-height: 60px; justify-content: center; }
-        .word-chip { padding: 4px 14px; background: white; border: 1px solid #ced4da; border-radius: 6px; cursor: grab; font-size: 1.25rem; }
+        .word-chip { padding: 4px 14px; background: white; border: 1px solid #ced4da; border-radius: 6px; cursor: grab; font-size: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+        
         .controls { text-align: center; margin-top: 30px; }
         .btn-check { background: var(--primary); color: white; padding: 12px 45px; border-radius: 30px; border: none; font-size: 1.1rem; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
+
 <div class="container">
     <div id="word-tooltip"></div>
     <div id="home-screen" class="home-screen">
@@ -42,22 +72,23 @@
             <select id="level-select"><option value="all">すべてのレベル</option></select>
             <button class="start-btn" onclick="startLesson()">学習をはじめる</button>
         </div>
-        <div id="status-msg">読み込み中...</div>
+        <div id="status-msg">データを読み込み中...</div>
     </div>
+
     <div id="game-screen" class="game-screen">
         <div class="info-bar"><span id="info-grammar"></span><span id="info-level"></span></div>
         <div id="question-area" class="question-text"></div>
         <div id="word-bank" class="word-bank"></div>
         <div class="controls">
             <div id="game-msg" style="margin-bottom:10px; min-height:1.2rem; font-weight:bold;"></div>
-            <button class="btn-check" onclick="checkAnswers()">答え合わせ</button>
-            <button onclick="showHome()" style="background:#95a5a6; color:white; border:none; padding:8px 20px; border-radius:5px; margin-left:10px; cursor:pointer;">戻る</button>
+            <button class="btn-check" onclick="checkAnswers()">答え合わせ</button><br>
+            <button onclick="showHome()" style="background:#95a5a6; color:white; border:none; padding:8px 20px; border-radius:5px; margin-top:20px; cursor:pointer;">戻る</button>
         </div>
     </div>
 </div>
 
 <script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycbz9kpmLZGXq-rNVkO07NLa9kf2VtTCNv_-oDrRgBVrc31Whj0OXobNkHh4fLtV-DhnF/exec'; // ★ここにURLを貼る
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyRI_FJNrI2o7SlQK0XasTFmxydFJA6-HYiiZM78lpaGRX6pfqBId8VHqMeh6Ng2ko-/exec'; // ★ここにURLを貼り付け
     let allQuestions = [], dictionary = {}, filteredQuestions = [], currentData = null, draggedElement = null, hideTimeout = null;
 
     async function init() {
@@ -69,7 +100,7 @@
             populateSelect('grammar-select', 'grammar');
             populateSelect('level-select', 'level');
             document.getElementById('status-msg').innerText = "準備完了！";
-        } catch (e) { document.getElementById('status-msg').innerText = "接続エラー"; }
+        } catch (e) { document.getElementById('status-msg').innerText = "通信エラー"; }
     }
 
     function populateSelect(id, key) {
@@ -85,7 +116,7 @@
         const gV = document.getElementById('grammar-select').value;
         const lV = document.getElementById('level-select').value;
         filteredQuestions = allQuestions.filter(q => (gV === 'all' || q.grammar == gV) && (lV === 'all' || q.level == lV));
-        if (filteredQuestions.length === 0) return alert("該当する問題がありません");
+        if (filteredQuestions.length === 0) return alert("問題がありません");
         document.getElementById('home-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'block';
         loadNextQuestion();
@@ -98,26 +129,20 @@
         renderQuestion(currentData);
     }
 
-    function escapeHtml(str) {
-        return str.replace(/'/g, "\\'");
-    }
+    function escapeHtml(str) { return str.replace(/'/g, "\\'"); }
 
     function renderQuestion(item) {
         const qArea = document.getElementById('question-area');
         const bank = document.getElementById('word-bank');
         bank.innerHTML = "";
-        
-        // 元の文章を取得（ここで大文字・小文字を維持）
         let text = item.text.replace(/[\(（](\d+)[\)）]/g, "__HOLE_$1__");
 
-        // 熟語判定（辞書内の熟語も念のため小文字で照合）
+        // 熟語優先
         const dictKeys = Object.keys(dictionary).sort((a, b) => b.length - a.length);
         dictKeys.forEach(phrase => {
             if (phrase.includes(" ")) {
                 const regex = new RegExp(`(^|[^a-zA-Z'’])${phrase}($|[^a-zA-Z'’])`, 'gi');
                 text = text.replace(regex, (match, p1, p2) => {
-                    // match 自体は元のケース（大文字含む）を保持している
-                    // phrase は辞書のキー（小文字）
                     const foundText = match.slice(p1.length, match.length - p2.length);
                     return `${p1}__PHRASE_${phrase.replace(/ /g, "_")}_[${foundText}]__${p2}`;
                 });
@@ -126,28 +151,20 @@
 
         let parts = text.split(/(__HOLE_\d+__|__PHRASE_.*?__|[a-zA-Z'’]+)/);
         let html = "";
-        
         parts.forEach(part => {
             if (!part) return;
-            
             if (part.match(/^__HOLE_(\d+)__$/)) {
                 html += `<span class="drop-zone" id="zone-${part.match(/\d+/)[0]}" data-ans-num="${part.match(/\d+/)[0]}"></span>`;
             } else if (part.match(/^__PHRASE_(.*?)_\[(.*?)\]__$/)) {
                 const m = part.match(/^__PHRASE_(.*?)_\[(.*?)\]__$/);
                 const key = m[1].replace(/_/g, " ").toLowerCase().replace(/’/g, "'");
-                const originalDisplay = m[2]; // ここに元の表示（大文字小文字含む）が入る
-                html += `<span class="clickable-word" onclick="showDict(event, '${escapeHtml(key)}')">${originalDisplay}</span>`;
+                html += `<span class="clickable-word" onclick="showDict(event, '${escapeHtml(key)}')">${m[2]}</span>`;
             } else if (part.match(/^[a-zA-Z'’]+$/)) {
-                // 辞書引き用に小文字化。表示（part）は大文字のまま使う
                 const searchKey = part.toLowerCase().replace(/’/g, "'");
                 if (dictionary[searchKey]) {
                     html += `<span class="clickable-word" onclick="showDict(event, '${escapeHtml(searchKey)}')">${part}</span>`;
-                } else {
-                    html += part;
-                }
-            } else {
-                html += part;
-            }
+                } else { html += part; }
+            } else { html += part; }
         });
         qArea.innerHTML = html;
 
@@ -168,15 +185,12 @@
         event.stopPropagation();
         const data = dictionary[key];
         if (!data) return;
-
         const tooltip = document.getElementById('word-tooltip');
         tooltip.innerHTML = (data.read ? `<span class="tooltip-read">${data.read}</span>` : "") + data.mean;
         tooltip.style.display = 'block';
-        
         const rect = event.target.getBoundingClientRect();
         tooltip.style.left = (rect.left + window.pageXOffset + (rect.width / 2)) + 'px';
         tooltip.style.top = (rect.top + window.pageYOffset - tooltip.offsetHeight - 10) + 'px';
-        
         if (hideTimeout) clearTimeout(hideTimeout);
         hideTimeout = setTimeout(() => { tooltip.style.display = 'none'; }, 3000);
     }
