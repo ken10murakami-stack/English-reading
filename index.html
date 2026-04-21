@@ -15,23 +15,20 @@
         select { padding: 12px; width: 280px; border-radius: 8px; border: 1px solid #ddd; font-size: 1rem; background: white; }
         .start-btn { background: var(--success); color: white; padding: 15px 50px; font-size: 1.2rem; border: none; border-radius: 30px; cursor: pointer; font-weight: bold; }
         
-        /* 達成率表示エリア */
+        /* 達成率 */
         .progress-container { margin-top: 20px; text-align: left; background: #fff; border: 1px solid #eee; padding: 15px; border-radius: 10px; font-size: 0.9rem; max-height: 250px; overflow-y: auto; }
         .progress-item { display: flex; justify-content: space-between; margin-bottom: 5px; border-bottom: 1px solid #f9f9f9; padding-bottom: 3px; }
         .progress-bar-bg { width: 100px; height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-left: 10px; align-self: center; }
         .progress-bar-fill { height: 100%; background: var(--success); }
 
-        /* JSON保存・読込ボタン */
         .storage-controls { margin-top: 15px; display: flex; justify-content: center; gap: 10px; }
         .btn-storage { background: #95a5a6; color: white; padding: 8px 15px; border-radius: 5px; border: none; font-size: 0.8rem; cursor: pointer; transition: 0.2s; }
-        .btn-storage:hover { opacity: 0.8; }
 
         /* ゲーム画面 */
         .game-screen { display: none; }
         .info-bar { display: flex; justify-content: space-between; color: #666; margin-bottom: 15px; font-size: 0.9rem; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }
         .question-text { font-size: 1.25rem; line-height: 3.5; margin-bottom: 30px; padding: 25px; border: 1px solid #eee; border-radius: 12px; background: #fff; white-space: pre-wrap; }
         .clickable-word { cursor: pointer; border-bottom: 1px dashed #3498db; color: #2980b9; padding: 0 1px; }
-        .clickable-word:hover { background-color: #fff9c4; }
 
         #word-tooltip {
             position: absolute; display: none; background: rgba(0,0,0,0.9); color: #fff;
@@ -51,7 +48,7 @@
         .hole-zone.incorrect { color: var(--error); border-bottom: 2px solid var(--error); }
 
         .word-bank { display: flex; flex-wrap: wrap; gap: 10px; padding: 20px; background: #f8f9fa; border: 2px dashed #dee2e6; border-radius: 12px; min-height: 60px; justify-content: center; }
-        .word-chip { padding: 8px 18px; background: white; border: 1px solid #ced4da; border-radius: 20px; cursor: pointer; font-size: 1.1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .word-chip { padding: 8px 18px; background: white; border: 1px solid #ced4da; border-radius: 20px; cursor: pointer; font-size: 1.1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); user-select: none; }
         .word-chip.used { opacity: 0.2; cursor: default; }
 
         .controls { text-align: center; margin-top: 30px; }
@@ -95,7 +92,7 @@
 <script>
     const API_URL = 'https://script.google.com/macros/s/AKfycbyDuBRYj2B32y1sprC37z7f5Zqm4iG-GbGcKo4_NPK9oLsEI8HAaO54SGuuMwm3eHKb/exec'; 
     let allQuestions = [], dictionary = {}, filteredQuestions = [], currentData = null, hideTimeout = null;
-    let activeHoleNum = null, questionWords = [];
+    let activeHoleNum = null, questionWords = [], longPressTimer = null;
     let solvedIds = JSON.parse(localStorage.getItem('solved_questions') || "[]");
 
     async function init() {
@@ -156,7 +153,7 @@
                     updateProgressDisplay();
                     alert("読み込みました！");
                 }
-            } catch (err) { alert("エラーが発生しました。"); }
+            } catch (err) { alert("エラー"); }
         };
         reader.readAsText(file);
     }
@@ -165,7 +162,7 @@
         const gV = document.getElementById('grammar-select').value;
         const lV = document.getElementById('level-select').value;
         filteredQuestions = allQuestions.filter(q => (gV === 'all' || q.grammar == gV) && (lV === 'all' || q.level == lV));
-        if (filteredQuestions.length === 0) return alert("問題がありません");
+        if (filteredQuestions.length === 0) return alert("問題なし");
         document.getElementById('home-screen').style.display = 'none';
         document.getElementById('game-screen').style.display = 'block';
         loadNextQuestion();
@@ -175,8 +172,7 @@
         document.getElementById('next-btn').style.display = 'none';
         document.getElementById('check-btn').style.display = 'inline-block';
         document.getElementById('game-msg').innerText = "";
-        activeHoleNum = null;
-        questionWords = [];
+        activeHoleNum = null; questionWords = [];
         currentData = filteredQuestions[Math.floor(Math.random() * filteredQuestions.length)];
         document.getElementById('info-grammar').innerText = `ターゲット: ${currentData.grammar}`;
         document.getElementById('info-level').innerText = `レベル: ${currentData.level}`;
@@ -186,8 +182,6 @@
     function renderQuestion(item) {
         const qArea = document.getElementById('question-area');
         let text = item.text.replace(/[\(（](\d+)[\)）]/g, "___HOLE_$1___");
-        
-        // 熟語マッチング
         const dictKeys = Object.keys(dictionary).sort((a, b) => b.length - a.length);
         dictKeys.forEach(phrase => {
             if (phrase.includes(" ")) {
@@ -199,10 +193,8 @@
             }
         });
 
-        // 修正：単語の分割ルールにアポストロフィ(' ’)を含める
         let parts = text.split(/(___HOLE_\d+___|__PHRASE_.*?__|[a-zA-Z'’]+)/);
         qArea.innerHTML = "";
-        
         parts.forEach(part => {
             if (!part) return;
             if (part.startsWith("___HOLE_")) {
@@ -219,7 +211,6 @@
                 span.onclick = (e) => showDict(e, key);
                 qArea.appendChild(span);
             } else if (part.match(/^[a-zA-Z'’]+$/)) {
-                // 比較用にアポストロフィを半角に統一
                 const key = part.toLowerCase().replace(/[’]/g, "'");
                 if (dictionary[key]) {
                     const span = document.createElement('span');
@@ -237,10 +228,19 @@
         bank.innerHTML = ""; questionWords = [];
         for(let i=1; i<=10; i++) if(item['ans'+i]) questionWords.push({ word: item['ans'+i].toString().trim(), used: false });
         if (item.dummy) item.dummy.toString().split(',').forEach(d => { if(d.trim()) questionWords.push({ word: d.trim(), used: false }); });
+        
         questionWords.sort(() => Math.random() - 0.5).forEach((wordObj, i) => {
             const chip = document.createElement('div');
             chip.className = 'word-chip'; chip.innerText = wordObj.word; chip.id = `chip-${i}`;
+            
+            // 通常タップ：単語の入力
             chip.onclick = () => selectWordForHole(i);
+            
+            // 長押し/右クリック：辞書表示
+            chip.oncontextmenu = (e) => { e.preventDefault(); showDict(e, wordObj.word.toLowerCase().replace(/[’]/g, "'")); };
+            chip.ontouchstart = () => { longPressTimer = setTimeout(() => showDictFromTouch(chip, wordObj.word), 600); };
+            chip.ontouchend = () => { clearTimeout(longPressTimer); };
+
             bank.appendChild(chip);
         });
     }
@@ -266,9 +266,20 @@
         activeHoleNum = null;
     }
 
+    // モバイル用タッチ位置取得
+    function showDictFromTouch(el, word) {
+        const rect = el.getBoundingClientRect();
+        const fakeEvent = {
+            stopPropagation: () => {},
+            target: el,
+            pageXOffset: window.pageXOffset,
+            pageYOffset: window.pageYOffset
+        };
+        showDict(fakeEvent, word.toLowerCase().replace(/[’]/g, "'"));
+    }
+
     function showDict(event, key) {
-        event.stopPropagation();
-        // 念のため引数のキーのアポストロフィも統一
+        if (event.stopPropagation) event.stopPropagation();
         const cleanKey = key.toLowerCase().replace(/[’]/g, "'");
         const data = dictionary[cleanKey]; 
         if (!data) return;
@@ -287,8 +298,8 @@
         let allCorrect = true;
         holes.forEach(hole => {
             if (!hole.classList.contains('filled')) { allCorrect = false; return; }
-            const user = hole.innerText.toLowerCase().trim();
-            const correct = currentData['ans'+hole.dataset.holeNum].toString().toLowerCase().trim();
+            const user = hole.innerText.toLowerCase().trim().replace(/[’]/g, "'");
+            const correct = currentData['ans'+hole.dataset.holeNum].toString().toLowerCase().trim().replace(/[’]/g, "'");
             if (user === correct) { hole.classList.add('correct'); hole.classList.remove('incorrect'); }
             else { 
                 hole.classList.add('incorrect'); allCorrect = false;
@@ -301,25 +312,15 @@
                 }, 1500);
             }
         });
-
         if (allCorrect && holes.length > 0) {
             document.getElementById('game-msg').innerHTML = "<span style='color:green'>Excellent! 正解です！</span>";
             document.getElementById('check-btn').style.display = 'none';
             document.getElementById('next-btn').style.display = 'inline-block';
-            if (!solvedIds.includes(currentData.id)) {
-                solvedIds.push(currentData.id);
-                localStorage.setItem('solved_questions', JSON.stringify(solvedIds));
-            }
-        } else if (holes.length > 0) {
-            document.getElementById('game-msg').innerHTML = "<span style='color:red'>間違いがあります。</span>";
-        }
+            if (!solvedIds.includes(currentData.id)) { solvedIds.push(currentData.id); localStorage.setItem('solved_questions', JSON.stringify(solvedIds)); }
+        } else if (holes.length > 0) { document.getElementById('game-msg').innerHTML = "<span style='color:red'>間違いがあります。</span>"; }
     }
 
-    function showHome() { 
-        updateProgressDisplay();
-        document.getElementById('home-screen').style.display = 'block'; 
-        document.getElementById('game-screen').style.display = 'none'; 
-    }
+    function showHome() { updateProgressDisplay(); document.getElementById('home-screen').style.display = 'block'; document.getElementById('game-screen').style.display = 'none'; }
     document.onclick = () => document.getElementById('word-tooltip').style.display = 'none';
     init();
 </script>
