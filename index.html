@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>中学生向け 英語長文学習アプリ（スプレッドシート連動版）</title>
+    <title>中学生向け 英語長文学習アプリ</title>
     <style>
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
@@ -27,6 +27,7 @@
             font-size: 1.5rem;
             margin-bottom: 30px;
         }
+        /* 状態・案内を表示するバッジ */
         .mode-info {
             background-color: #e8f4fd;
             color: #1e88e5;
@@ -36,6 +37,7 @@
             text-align: center;
             margin-bottom: 20px;
         }
+        /* フェーズ1：英文表示エリア */
         .text-container {
             font-size: 1.3rem;
             letter-spacing: 0.05em;
@@ -44,6 +46,7 @@
             min-height: 50px;
             text-align: center;
         }
+        /* フェーズ1：単語のスタイル */
         .word-span {
             display: inline-block;
             position: relative;
@@ -56,6 +59,7 @@
         .word-span:hover {
             background-color: #e0f2fe;
         }
+        /* 学習者が引いた赤いスラッシュ */
         .word-span.has-slash::after {
             content: "/";
             position: absolute;
@@ -66,6 +70,7 @@
             font-size: 1.5rem;
             z-index: 10;
         }
+        /* ボタンの配置エリア */
         .btn-container {
             text-align: center;
             margin-top: 20px;
@@ -85,6 +90,7 @@
         button:hover {
             background-color: #21a769;
         }
+        /* フェーズ2：直読直解ブロックのスタイル */
         .phrase-block {
             margin-bottom: 25px;
             padding: 15px;
@@ -108,204 +114,5 @@
             font-size: 1.1rem;
             color: #43a047;
             font-weight: bold;
-            display: none;
+            display: none; /* 初期は隠す */
         }
-        .phrase-block.cleared {
-            border-left-color: #43a047;
-            background-color: #e8f5e9;
-        }
-        .phrase-block.cleared .phrase-translation {
-            display: block;
-        }
-    </style>
-</head>
-<body>
-
-<div class="container">
-    <h1>中学生向け 英語長文学習アプリ（CSV連動）</h1>
-    
-    <div id="mode-badge" class="mode-info">
-        データを読み込み中...
-    </div>
-
-    <div id="main-content"></div>
-
-    <div class="btn-container">
-        <button id="action-btn" onclick="checkSlashAnswers()" style="display:none;">スラッシュの答え合わせをする</button>
-    </div>
-</div>
-
-<script>
-// ==========================================
-// 🛠️ 設定：ご自身のスプレッドシートのCSV URLをここに貼り付けてください
-// ==========================================
-const SPREADSHEET_CSV_URL = "ここにコピーしたURLを貼り付け";
-
-let currentQuestion = { text: "", translations: "" };
-let wordsArray = [];        
-let correctSlashIndices = []; 
-
-// 1. スプレッドシート（CSV）からデータを取得する関数
-async function loadDataFromSpreadsheet() {
-    if (SPREADSHEET_CSV_URL === "ここにコピーしたURLを貼り付け") {
-        document.getElementById('mode-badge').innerText = "【設定エラー】コード内のSPREADSHEET_CSV_URLに、スプレッドシートのURLを設定してください。";
-        return;
-    }
-
-    try {
-        const response = await fetch(SPREADSHEET_CSV_URL);
-        const csvText = await response.text();
-        
-        // CSVの行に分解
-        const lines = csvText.split('\n').map(line => line.trim()).filter(line => line !== "");
-        
-        // 2行目（インデックス1）のデータを取得してみる（テスト用に最初の1問目）
-        if (lines.length > 1) {
-            // カンマで分割する簡易的な処理
-            const columns = lines[1].split(',');
-            
-            // スプレッドシートの列の並び順（id, level, category, text, translations）を想定
-            currentQuestion.text = columns[3].replace(/^"|"$/g, '');         // text列（前後のダブルクォーテーションを消去）
-            currentQuestion.translations = columns[4].replace(/^"|"$/g, ''); // translations列
-            
-            // アプリの初期化へ
-            initApp();
-        } else {
-            document.getElementById('mode-badge').innerText = "スプレッドシートにデータが見つかりません。";
-        }
-    } catch (error) {
-        console.error("データ取得エラー:", error);
-        document.getElementById('mode-badge').innerText = "データの読み込みに失敗しました。URLや公開設定を確認してください。";
-    }
-}
-
-// 2. アプリの初期化と画面構築
-function initApp() {
-    document.getElementById('mode-badge').innerText = "【フェーズ1】正しいと思う区切り（単語の後ろ）をタップしてスラッシュを入れよう！";
-    document.getElementById('action-btn').style.display = "inline-block";
-
-    // 本文、日本語訳ともに「/」で分割
-    const phrases = currentQuestion.text.split('/').map(p => p.trim()).filter(p => p !== "");
-    
-    let wordCounter = 0;
-    let htmlMarkup = '<div class="text-container">';
-
-    phrases.forEach((phrase) => {
-        const words = phrase.split(' ');
-        words.forEach((word, wordIndex) => {
-            wordsArray.push({
-                text: word,
-                hasUserSlash: false,
-                isCorrectSlashPosition: false
-            });
-
-            htmlMarkup += `<span class="word-span" id="word-${wordCounter}" onclick="toggleSlash(${wordCounter})">${word}</span>`;
-            
-            // 区切りの最後の単語のあとに、正解スラッシュの位置を記録
-            if (wordIndex === words.length - 1) {
-                correctSlashIndices.push(wordCounter);
-                wordsArray[wordCounter].isCorrectSlashPosition = true;
-            }
-            wordCounter++;
-        });
-    });
-    
-    htmlMarkup += '</div>';
-    document.getElementById('main-content').innerHTML = htmlMarkup;
-}
-
-// スラッシュのON/OFF
-function toggleSlash(index) {
-    const wordElement = document.getElementById(`word-${index}`);
-    wordsArray[index].hasUserSlash = !wordsArray[index].hasUserSlash;
-    
-    if (wordsArray[index].hasUserSlash) {
-        wordElement.classList.add('has-slash');
-    } else {
-        wordElement.classList.remove('has-slash');
-    }
-}
-
-// フェーズ1：スラッシュの答え合わせ
-function checkSlashAnswers() {
-    let isAllCorrect = true;
-
-    wordsArray.forEach((word) => {
-        if (word.isCorrectSlashPosition !== word.hasUserSlash) {
-            isAllCorrect = false;
-        }
-    });
-
-    if (isAllCorrect) {
-        alert("素晴らしい！全問正解です！直読直解（日本語訳）モードに進みます。");
-        startTranslationMode();
-    } else {
-        alert("おや？スラッシュの位置が少し違うようです。もう一度確認してみよう！\n（※今回はそのまま次のモードに進みます）");
-        startTranslationMode();
-    }
-}
-
-// フェーズ2：直読直解モード
-function startTranslationMode() {
-    document.getElementById('mode-badge').innerText = "【フェーズ2】英文をタップして、頭の中の日本語訳と答え合わせをしよう！";
-    const btn = document.getElementById('action-btn');
-    btn.innerText = "学習を終了する";
-    btn.setAttribute('onclick', 'finishLearning()');
-    btn.style.backgroundColor = "#b0bec5"; 
-
-    // 両方「/」で分割
-    const englishPhrases = currentQuestion.text.split('/').map(p => p.trim()).filter(p => p !== "");
-    const japanesePhrases = currentQuestion.translations.split('/').map(p => p.trim()).filter(p => p !== "");
-
-    let htmlMarkup = '<div class="translation-mode-container">';
-    
-    englishPhrases.forEach((eng, index) => {
-        const jpn = japanesePhrases[index] || "（訳が登録されていません）";
-        htmlMarkup += `
-            <div class="phrase-block" id="phrase-${index}" onclick="revealTranslation(${index})">
-                <div class="phrase-english">${eng}</div>
-                <div class="phrase-translation">${jpn}</div>
-            </div>
-        `;
-    });
-
-    htmlMarkup += '</div>';
-    document.getElementById('main-content').innerHTML = htmlMarkup;
-}
-
-function revealTranslation(index) {
-    const block = document.getElementById(`phrase-${index}`);
-    block.classList.add('cleared');
-    checkAllPhrasesCleared();
-}
-
-function checkAllPhrasesCleared() {
-    const total = document.querySelectorAll('.phrase-block').length;
-    const cleared = document.querySelectorAll('.phrase-block.cleared').length;
-    
-    if (total === cleared) {
-        const btn = document.getElementById('action-btn');
-        btn.innerText = "すべての答え合わせが完了！終了する";
-        btn.style.backgroundColor = "#1e88e5";
-    }
-}
-
-function finishLearning() {
-    const total = document.querySelectorAll('.phrase-block').length;
-    const cleared = document.querySelectorAll('.phrase-block.cleared').length;
-
-    if (total !== cleared) {
-        alert("まだ確認していない日本語訳があります。すべての区切りをタップしてみましょう！");
-        return;
-    }
-    
-    alert("お疲れ様でした！今回の長文の学習はすべて完了です！");
-    location.reload(); 
-}
-
-// ページの読み込みが完了したら、まずスプレッドシートからデータを取得
-window.onload = loadDataFromSpreadsheet;
-</script>
-
-</body>
-</html>
