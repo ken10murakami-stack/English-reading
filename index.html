@@ -20,13 +20,12 @@
             padding: 30px;
             border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            position: relative; /* ホームボタンの絶対配置のため */
+            position: relative;
         }
-        /* ヘッダーエリアの調整 */
         .header-area {
             text-align: center;
             margin-bottom: 30px;
-            padding-right: 100px; /* ボタンと被らないように余白を確保 */
+            padding-right: 100px;
             padding-left: 100px;
         }
         h1 {
@@ -34,7 +33,6 @@
             font-size: 1.5rem;
             margin: 0;
         }
-        /* いつでもホームに戻れるボタン */
         .nav-home-btn {
             position: absolute;
             top: 25px;
@@ -48,7 +46,6 @@
             border-radius: 20px;
             cursor: pointer;
             transition: all 0.2s;
-            box-shadow: none;
         }
         .nav-home-btn:hover {
             background-color: #f4f6f7;
@@ -64,31 +61,6 @@
             text-align: center;
             margin-bottom: 20px;
         }
-        /* ホーム画面用のスタイル */
-        .home-container {
-            text-align: center;
-            padding: 20px 0;
-        }
-        .select-group {
-            margin-bottom: 20px;
-        }
-        .select-group label {
-            display: block;
-            font-weight: bold;
-            margin-bottom: 8px;
-            color: #555;
-        }
-        select {
-            width: 80%;
-            max-width: 300px;
-            padding: 10px;
-            font-size: 1rem;
-            border: 2px solid #b0bec5;
-            border-radius: 8px;
-            background: white;
-            cursor: pointer;
-        }
-        /* フェーズ1：英文表示エリア */
         .text-container {
             font-size: 1.3rem;
             letter-spacing: 0.05em;
@@ -98,13 +70,12 @@
             text-align: left;
             padding: 0 10px;
         }
-        /* フェーズ1：単語のスタイル */
         .word-span {
             display: inline-block;
             position: relative;
             cursor: pointer;
             padding: 4px 4px;
-            margin-right: 16px; /* スラッシュの色変化が見えやすいよう間隔を広げました */
+            margin-right: 16px;
             border-radius: 4px;
             transition: all 0.2s;
         }
@@ -139,30 +110,19 @@
             cursor: default;
         }
 
-        /* 【答え合わせ後：不正解（入れてはいけない場所に入れた）】スラッシュをオレンジに */
+        /* 【答え合わせ後：不正解（不要な場所に入れた）】スラッシュをオレンジに */
         .word-span.wrong-slash::after {
             content: "/";
             position: absolute;
             right: -12px;
             top: 0;
             font-weight: bold;
-            color: #ffa726 !important; /* オレンジ色 */
+            color: #ffa726 !important;
             font-size: 1.5rem;
             z-index: 10;
         }
 
-        /* 【答え合わせ後：入れ忘れ（入れるべき場所に無い）】うっすらグレーの点線でナビゲート */
-        .word-span.missing-slash::after {
-            content: "|";
-            position: absolute;
-            right: -8px;
-            top: 0;
-            font-weight: normal;
-            color: #b0bec5;
-            font-size: 1.4rem;
-            opacity: 0.6;
-            z-index: 5;
-        }
+        /* 💡 灰色の |（missing-slash）に関するスタイルは削除しました */
 
         .line-break {
             display: block;
@@ -188,7 +148,6 @@
         button:hover {
             background-color: #21a769;
         }
-        /* フェーズ2：直読直解ブロック */
         .phrase-block {
             margin-bottom: 25px;
             padding: 15px;
@@ -254,10 +213,9 @@ let currentQuestion = { text: "", translations: "" };
 let wordsArray = [];        
 let correctSlashIndices = []; 
 
-// 1. GAS経由でデータ取得
 async function loadDataFromSpreadsheet() {
     if (SPREADSHEET_GAS_URL === "ここにデプロイしたウェブアプリのURLを貼り付け") {
-        document.getElementById('mode-badge').innerText = "【設定エラー】コード内のSPREADSHEET_GAS_URLに、GASのウェブアプリURLを設定してください。";
+        document.getElementById('mode-badge').innerText = "【設定エラー】コード内のSPREADSHEET_GAS_URLに, GASのウェブアプリURLを設定してください。";
         return;
     }
 
@@ -276,11 +234,10 @@ async function loadDataFromSpreadsheet() {
     }
 }
 
-// 2. ホーム画面表示
 function showHomeScreen() {
     document.getElementById('mode-badge').innerText = "【ホーム】学習したいレベルと文法を選んで「スタート」を押そう！";
     document.getElementById('action-btn').style.display = "none";
-    document.getElementById('nav-home').style.display = "none"; // ホーム画面なので戻るボタンは隠す
+    document.getElementById('nav-home').style.display = "none";
 
     const levels = [...new Set(allQuestions.map(q => q.level).filter(l => l))];
     const categories = [...new Set(allQuestions.map(q => q.category).filter(c => c))];
@@ -324,17 +281,15 @@ function startSelectedLesson() {
     }
 }
 
-// 途中離脱時の確認付きホーム戻り関数
 function confirmGoHome() {
     if (confirm("学習を途中でやめて、ホーム画面に戻りますか？")) {
         showHomeScreen();
     }
 }
 
-// 3. フェーズ1（スラッシュ引き）画面構築
 function initApp() {
     document.getElementById('mode-badge').innerText = "【フェーズ1】正しいと思う区切り（単語の後ろ）をタップしてスラッシュを入れよう！";
-    document.getElementById('nav-home').style.display = "inline-block"; // 学習中なので戻るボタンを表示
+    document.getElementById('nav-home').style.display = "inline-block";
 
     const actionBtn = document.getElementById('action-btn');
     actionBtn.style.display = "inline-block";
@@ -385,8 +340,8 @@ function toggleSlash(index) {
     const wordElement = document.getElementById(`word-${index}`);
     wordsArray[index].hasUserSlash = !wordsArray[index].hasUserSlash;
     
-    // 答え合わせによって付与された色クラスをクリア
-    wordElement.classList.remove('wrong-slash', 'missing-slash');
+    // 💡 答え合わせ後のやり直し時にオレンジ線を消す
+    wordElement.classList.remove('wrong-slash');
 
     if (wordsArray[index].hasUserSlash) {
         wordElement.classList.add('has-slash');
@@ -395,7 +350,7 @@ function toggleSlash(index) {
     }
 }
 
-// 🔥 【見た目変更】スラッシュ自体の色・形状を変化させる答え合わせ
+// 🛠️ 答え合わせロジック（灰色線の処理を削除）
 function checkSlashAnswers() {
     let isAllCorrect = true;
     let wrongCount = 0;
@@ -403,29 +358,24 @@ function checkSlashAnswers() {
     wordsArray.forEach((word, index) => {
         const wordElement = document.getElementById(`word-${index}`);
         
-        // 判定前に状態クラスを一通りリセット
-        wordElement.classList.remove('wrong-slash', 'missing-slash');
+        wordElement.classList.remove('wrong-slash');
 
         if (word.isCorrectSlashPosition === word.hasUserSlash) {
-            // 正解の場合
             if (word.isCorrectSlashPosition) {
                 word.isAlreadyCorrect = true;
                 wordElement.classList.remove('has-slash');
-                wordElement.classList.add('correct-slash', 'locked'); // 緑色にして固定
+                wordElement.classList.add('correct-slash', 'locked'); 
             }
         } else {
-            // 不正解の場合
             isAllCorrect = false;
             wrongCount++;
 
             if (word.hasUserSlash) {
-                // 不要な場所にスラッシュがある場合 -> オレンジ色のスラッシュに
+                // 間違った場所に引いたものはオレンジに変更
                 wordElement.classList.remove('has-slash');
                 wordElement.classList.add('wrong-slash');
-            } else {
-                // スラッシュを入れ忘れている場合 -> うっすらグレーの点線を表示
-                wordElement.classList.add('missing-slash');
             }
+            // 💡 入れ忘れ（else）の場合は何もクラスを付与せず、画面上は変化しないように変更しました
         }
     });
 
@@ -433,11 +383,10 @@ function checkSlashAnswers() {
         alert("素晴らしい！全問正解です！直読直解（日本語訳）モードに進みます。");
         startTranslationMode();
     } else {
-        alert(`おや？スラッシュの位置が違うところが ${wrongCount} 箇所あります。\n色が変わった部分を見直して、もう一度挑戦してみよう！`);
+        alert(`おや？スラッシュの位置が違うところが ${wrongCount} 箇所あります。\n見直して、もう一度挑戦してみよう！`);
     }
 }
 
-// 4. フェーズ2（直読直解モード）
 function startTranslationMode() {
     document.getElementById('mode-badge').innerText = "【フェーズ2】英文をタップして、頭の中の日本語訳と答え合わせをしよう！";
     
