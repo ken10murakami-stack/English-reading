@@ -116,3 +116,208 @@
             font-weight: bold;
             display: none; /* 初期は隠す */
         }
+        /* タップして確認済みの区切りスタイル */
+        .phrase-block.cleared {
+            border-left-color: #43a047;
+            background-color: #e8f5e9;
+        }
+        .phrase-block.cleared .phrase-translation {
+            display: block; /* タップで表示 */
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>中学生向け 英語長文学習アプリ</h1>
+    
+    <div id="mode-badge" class="mode-info">
+        データを読み込み中...
+    </div>
+
+    <div id="main-content"></div>
+
+    <div class="btn-container">
+        <button id="action-btn" onclick="checkSlashAnswers()" style="display:none;">スラッシュの答え合わせをする</button>
+    </div>
+</div>
+
+<script>
+// ==========================================================================
+// 🛠️ 必須設定: 先ほどGoogle Apps Script（GAS）でデプロイした「ウェブアプリのURL」を貼り付けてください
+// ==========================================================================
+const SPREADSHEET_GAS_URL = "https://script.google.com/macros/s/AKfycbx1fgY1v0ZToAX7F_vlw02fRml4bQ5VkCe7D5y7AZkJhLX_NOxBclgN7HCPeyKvQL3X/exec";
+
+// アプリ内部で保持する変数
+let currentQuestion = { text: "", translations: "" };
+let wordsArray = [];        
+let correctSlashIndices = []; 
+
+// 1. GAS経由でスプレッドシートからデータを取得
+async function loadDataFromSpreadsheet() {
+    if (SPREADSHEET_GAS_URL === "ここにデプロイしたウェブアプリのURLを貼り付け") {
+        document.getElementById('mode-badge').innerText = "【設定エラー】コード内のSPREADSHEET_GAS_URLに、GASのウェブアプリURLを設定してください。";
+        return;
+    }
+
+    try {
+        const response = await fetch(SPREADSHEET_GAS_URL);
+        const dataList = await response.json();
+        
+        // 動作テスト用として、スプレッドシートの「2行目（インデックス0）」のデータを読み込む
+        if (dataList.length > 0) {
+            const firstRow = dataList[0];
+            
+            // スプレッドシートの1行目（ヘッダー）の名前「text」「translations」と完全に一致させてください
+            currentQuestion.text = String(firstRow.text || "");
+            currentQuestion.translations = String(firstRow.translations || "");
+            
+            // アプリ画面を構築
+            initApp();
+        } else {
+            document.getElementById('mode-badge').innerText = "スプレッドシートにデータが見つかりません。一行目に「text」「translations」のヘッダーがあるか確認してください。";
+        }
+    } catch (error) {
+        console.error("データ取得エラー:", error);
+        document.getElementById('mode-badge').innerText = "データの読み込みに失敗しました。GASのURLやアクセス権限（全員）を確認してください。";
+    }
+}
+
+// 2. フェーズ1（スラッシュ引き）画面の構築
+function initApp() {
+    document.getElementById('mode-badge').innerText = "【フェーズ1】正しいと思う区切り（単語の後ろ）をタップしてスラッシュを入れよう！";
+    document.getElementById('action-btn').style.display = "inline-block";
+
+    // 英文を「/」で区切りごとに分割
+    const phrases = currentQuestion.text.split('/').map(p => p.trim()).filter(p => p !== "");
+    
+    let wordCounter = 0;
+    let htmlMarkup = '<div class="text-container">';
+
+    phrases.forEach((phrase) => {
+        const words = phrase.split(' ');
+        words.forEach((word, wordIndex) => {
+            // 単語情報を管理用配列に格納
+            wordsArray.push({
+                text: word,
+                hasUserSlash: false,
+                isCorrectSlashPosition: false
+            });
+
+            // 1単語ごとにクリックイベント付きの要素を生成
+            htmlMarkup += `<span class="word-span" id="word-${wordCounter}" onclick="toggleSlash(${wordCounter})">${word}</span>`;
+            
+            // 各フレーズ（塊）の最後の単語のインデックスを「正解スラッシュ位置」として記録
+            if (wordIndex === words.length - 1) {
+                correctSlashIndices.push(wordCounter);
+                wordsArray[wordCounter].isCorrectSlashPosition = true;
+            }
+            wordCounter++;
+        });
+    });
+    
+    htmlMarkup += '</div>';
+    document.getElementById('main-content').innerHTML = htmlMarkup;
+}
+
+// 単語をタップしたときの処理（スラッシュの表示・非表示切り替え）
+function toggleSlash(index) {
+    const wordElement = document.getElementById(`word-${index}`);
+    wordsArray[index].hasUserSlash = !wordsArray[index].hasUserSlash;
+    
+    if (wordsArray[index].hasUserSlash) {
+        wordElement.classList.add('has-slash');
+    } else {
+        wordElement.classList.remove('has-slash');
+    }
+}
+
+// フェーズ1：スラッシュの答え合わせボタンを押したときの処理
+function checkSlashAnswers() {
+    let isAllCorrect = true;
+
+    // ユーザーが選んだ位置と、本来の正解位置に不一致がないか判定
+    wordsArray.forEach((word) => {
+        if (word.isCorrectSlashPosition !== word.hasUserSlash) {
+            isAllCorrect = false;
+        }
+    });
+
+    if (isAllCorrect) {
+        alert("素晴らしい！全問正解です！直読直解（日本語訳）モードに進みます。");
+        startTranslationMode();
+    } else {
+        alert("おや？スラッシュの位置が少し違うようです。もう一度確認してみよう！\n（※今回は開発チェック用として、そのまま次のモードに進みます）");
+        startTranslationMode();
+    }
+}
+
+// 3. フェーズ2（直読直解モード）への切り替え処理
+function startTranslationMode() {
+    document.getElementById('mode-badge').innerText = "【フェーズ2】英文をタップして、頭の中の日本語訳と答え合わせをしよう！";
+    
+    // 下部ボタンの役割と見た目を更新
+    const btn = document.getElementById('action-btn');
+    btn.innerText = "学習を終了する";
+    btn.setAttribute('onclick', 'finishLearning()');
+    btn.style.backgroundColor = "#b0bec5"; // 初期状態（未完了）はグレー
+
+    // 英語と日本語をそれぞれ「/」で分解
+    const englishPhrases = currentQuestion.text.split('/').map(p => p.trim()).filter(p => p !== "");
+    const japanesePhrases = currentQuestion.translations.split('/').map(p => p.trim()).filter(p => p !== "");
+
+    let htmlMarkup = '<div class="translation-mode-container">';
+    
+    englishPhrases.forEach((eng, index) => {
+        const jpn = japanesePhrases[index] || "（日本語訳が正しく登録されていません）";
+        htmlMarkup += `
+            <div class="phrase-block" id="phrase-${index}" onclick="revealTranslation(${index})">
+                <div class="phrase-english">${eng}</div>
+                <div class="phrase-translation">${jpn}</div>
+            </div>
+        `;
+    });
+
+    htmlMarkup += '</div>';
+    document.getElementById('main-content').innerHTML = htmlMarkup;
+}
+
+// 区切りをタップしたときに日本語訳を表示する処理
+function revealTranslation(index) {
+    const block = document.getElementById(`phrase-${index}`);
+    block.classList.add('cleared');
+    checkAllPhrasesCleared(); // すべて表示されたか毎回判定
+}
+
+// すべての日本語訳が表示されたかチェックする関数
+function checkAllPhrasesCleared() {
+    const total = document.querySelectorAll('.phrase-block').length;
+    const cleared = document.querySelectorAll('.phrase-block.cleared').length;
+    
+    if (total === cleared) {
+        const btn = document.getElementById('action-btn');
+        btn.innerText = "すべての答え合わせが完了！終了する";
+        btn.style.backgroundColor = "#1e88e5"; // 完了したらボタンをアクティブ（青色）に変更
+    }
+}
+
+// 終了処理
+function finishLearning() {
+    const total = document.querySelectorAll('.phrase-block').length;
+    const cleared = document.querySelectorAll('.phrase-block.cleared').length;
+
+    if (total !== cleared) {
+        alert("まだ確認していない日本語訳があります。すべての区切りをタップしてみましょう！");
+        return;
+    }
+    
+    alert("お疲れ様でした！今回の長文の学習はすべて完了です！");
+    location.reload(); // サンプルとしてページをリロードして最初に戻します
+}
+
+// ページを開いた瞬間に、自動的にスプレッドシートのデータ取得を開始
+window.onload = loadDataFromSpreadsheet;
+</script>
+
+</body>
+</html>
