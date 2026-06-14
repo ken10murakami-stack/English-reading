@@ -304,3 +304,201 @@ function showHomeScreen() {
             </div>
         </div>
     `;
+    document.getElementById('main-content').innerHTML = htmlMarkup;
+}
+
+function startSelectedLesson() {
+    const selectedLevel = document.getElementById('level-select').value;
+    const selectedCategory = document.getElementById('category-select').value;
+    const matchQuestion = allQuestions.find(q => q.level == selectedLevel && q.category == selectedCategory);
+
+    if (matchQuestion) {
+        currentQuestion.text = String(matchQuestion.text || "");
+        currentQuestion.translations = String(matchQuestion.translations || "");
+        
+        wordsArray = [];
+        correctSlashIndices = [];
+        initApp();
+    } else {
+        alert("該当する長文が見つかりませんでした。別の組み合わせを選んでください。");
+    }
+}
+
+// 途中離脱時の確認付きホーム戻り関数
+function confirmGoHome() {
+    if (confirm("学習を途中でやめて、ホーム画面に戻りますか？")) {
+        showHomeScreen();
+    }
+}
+
+// 3. フェーズ1（スラッシュ引き）画面構築
+function initApp() {
+    document.getElementById('mode-badge').innerText = "【フェーズ1】正しいと思う区切り（単語の後ろ）をタップしてスラッシュを入れよう！";
+    document.getElementById('nav-home').style.display = "inline-block"; // 学習中なので戻るボタンを表示
+
+    const actionBtn = document.getElementById('action-btn');
+    actionBtn.style.display = "inline-block";
+    actionBtn.innerText = "スラッシュの答え合わせをする";
+    actionBtn.setAttribute('onclick', 'checkSlashAnswers()');
+    actionBtn.style.backgroundColor = "#2cc780";
+
+    const phrases = currentQuestion.text.split('/').map(p => p.trim()).filter(p => p !== "");
+    
+    let wordCounter = 0;
+    let htmlMarkup = '<div class="text-container">';
+
+    phrases.forEach((phrase) => {
+        const cleanPhrase = phrase.replace(/\n/g, ' [BR] ');
+        const words = cleanPhrase.split(' ').filter(w => w !== "");
+
+        words.forEach((word, wordIndex) => {
+            if (word === '[BR]') {
+                htmlMarkup += '<span class="line-break"></span>';
+                return;
+            }
+
+            wordsArray.push({
+                text: word,
+                hasUserSlash: false,
+                isCorrectSlashPosition: false,
+                isAlreadyCorrect: false 
+            });
+
+            htmlMarkup += `<span class="word-span" id="word-${wordCounter}" onclick="toggleSlash(${wordCounter})">${word}</span>`;
+            
+            const isLastWord = words.slice(wordIndex + 1).filter(w => w !== '[BR]').length === 0;
+            if (isLastWord && !wordsArray[wordCounter].isCorrectSlashPosition) {
+                correctSlashIndices.push(wordCounter);
+                wordsArray[wordCounter].isCorrectSlashPosition = true;
+            }
+            wordCounter++;
+        });
+    });
+    
+    htmlMarkup += '</div>';
+    document.getElementById('main-content').innerHTML = htmlMarkup;
+}
+
+function toggleSlash(index) {
+    if (wordsArray[index].isAlreadyCorrect) return;
+
+    const wordElement = document.getElementById(`word-${index}`);
+    wordsArray[index].hasUserSlash = !wordsArray[index].hasUserSlash;
+    
+    // 答え合わせによって付与された色クラスをクリア
+    wordElement.classList.remove('wrong-slash', 'missing-slash');
+
+    if (wordsArray[index].hasUserSlash) {
+        wordElement.classList.add('has-slash');
+    } else {
+        wordElement.classList.remove('has-slash');
+    }
+}
+
+// 🔥 【見た目変更】スラッシュ自体の色・形状を変化させる答え合わせ
+function checkSlashAnswers() {
+    let isAllCorrect = true;
+    let wrongCount = 0;
+
+    wordsArray.forEach((word, index) => {
+        const wordElement = document.getElementById(`word-${index}`);
+        
+        // 判定前に状態クラスを一通りリセット
+        wordElement.classList.remove('wrong-slash', 'missing-slash');
+
+        if (word.isCorrectSlashPosition === word.hasUserSlash) {
+            // 正解の場合
+            if (word.isCorrectSlashPosition) {
+                word.isAlreadyCorrect = true;
+                wordElement.classList.remove('has-slash');
+                wordElement.classList.add('correct-slash', 'locked'); // 緑色にして固定
+            }
+        } else {
+            // 不正解の場合
+            isAllCorrect = false;
+            wrongCount++;
+
+            if (word.hasUserSlash) {
+                // 不要な場所にスラッシュがある場合 -> オレンジ色のスラッシュに
+                wordElement.classList.remove('has-slash');
+                wordElement.classList.add('wrong-slash');
+            } else {
+                // スラッシュを入れ忘れている場合 -> うっすらグレーの点線を表示
+                wordElement.classList.add('missing-slash');
+            }
+        }
+    });
+
+    if (isAllCorrect) {
+        alert("素晴らしい！全問正解です！直読直解（日本語訳）モードに進みます。");
+        startTranslationMode();
+    } else {
+        alert(`おや？スラッシュの位置が違うところが ${wrongCount} 箇所あります。\n色が変わった部分を見直して、もう一度挑戦してみよう！`);
+    }
+}
+
+// 4. フェーズ2（直読直解モード）
+function startTranslationMode() {
+    document.getElementById('mode-badge').innerText = "【フェーズ2】英文をタップして、頭の中の日本語訳と答え合わせをしよう！";
+    
+    const btn = document.getElementById('action-btn');
+    btn.innerText = "学習を終了する";
+    btn.setAttribute('onclick', 'finishLearning()');
+    btn.style.backgroundColor = "#b0bec5"; 
+
+    const englishPhrases = currentQuestion.text.split('/').map(p => p.trim()).filter(p => p !== "");
+    const japanesePhrases = currentQuestion.translations.split('/').map(p => p.trim()).filter(p => p !== "");
+
+    let htmlMarkup = '<div class="translation-mode-container">';
+    
+    englishPhrases.forEach((eng, index) => {
+        const jpn = japanesePhrases[index] || "（日本語訳が正しく登録されていません）";
+        const formattedEng = eng.replace(/\n/g, '<br>');
+        
+        htmlMarkup += `
+            <div class="phrase-block" id="phrase-${index}" onclick="revealTranslation(${index})">
+                <div class="phrase-english">${formattedEng}</div>
+                <div class="phrase-translation">${jpn}</div>
+            </div>
+        `;
+    });
+
+    htmlMarkup += '</div>';
+    document.getElementById('main-content').innerHTML = htmlMarkup;
+}
+
+function revealTranslation(index) {
+    const block = document.getElementById(`phrase-${index}`);
+    block.classList.add('cleared');
+    checkAllPhrasesCleared();
+}
+
+function checkAllPhrasesCleared() {
+    const total = document.querySelectorAll('.phrase-block').length;
+    const cleared = document.querySelectorAll('.phrase-block.cleared').length;
+    
+    if (total === cleared) {
+        const btn = document.getElementById('action-btn');
+        btn.innerText = "すべての答え合わせが完了！終了する";
+        btn.style.backgroundColor = "#1e88e5";
+    }
+}
+
+function finishLearning() {
+    const total = document.querySelectorAll('.phrase-block').length;
+    const cleared = document.querySelectorAll('.phrase-block.cleared').length;
+
+    if (total !== cleared) {
+        alert("まだ確認していない日本語訳があります。すべての区切りをタップしてみましょう！");
+        return;
+    }
+    
+    alert("お疲れ様でした！ホーム画面に戻ります。");
+    showHomeScreen(); 
+}
+
+window.onload = loadDataFromSpreadsheet;
+</script>
+
+</body>
+</html>
