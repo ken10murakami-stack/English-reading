@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>中学生向け 英語長文学習アプリ</title>
+    <title>英語長文学習アプリ</title>
     <style>
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
@@ -67,7 +67,7 @@
             word-wrap: break-word;
             margin: 40px 0;
             min-height: 50px;
-            text-align: left; /* 長文の改行が見やすくなるよう左寄せに */
+            text-align: left;
             padding: 0 10px;
         }
         /* フェーズ1：単語のスタイル */
@@ -76,24 +76,55 @@
             position: relative;
             cursor: pointer;
             padding: 4px 4px;
-            margin-right: 4px;
+            margin-right: 12px; /* スラッシュが見えやすいよう間隔を少し広げました */
             border-radius: 4px;
-            transition: background-color 0.2s;
+            transition: all 0.2s;
         }
-        .word-span:hover {
+        .word-span:hover:not(.locked) {
             background-color: #e0f2fe;
         }
+        
+        /* 【通常状態】ユーザーが引いたスラッシュ（赤） */
         .word-span.has-slash::after {
             content: "/";
             position: absolute;
-            right: -6px;
+            right: -10px;
             top: 0;
             font-weight: bold;
             color: #ff5252;
             font-size: 1.5rem;
             z-index: 10;
         }
-        /* 改行用の特殊なスタイル */
+
+        /* 【答え合わせ後：正解】スラッシュを緑にして固定 */
+        .word-span.correct-slash::after {
+            content: "/";
+            position: absolute;
+            right: -10px;
+            top: 0;
+            font-weight: bold;
+            color: #2cc780 !important;
+            font-size: 1.5rem;
+            z-index: 10;
+        }
+        .word-span.locked {
+            cursor: default;
+            background-color: #e8f5e9; /* 正解した単語の背景を薄緑に */
+        }
+
+        /* 【答え合わせ後：不正解】間違えた単語の背景を薄赤にして強調 */
+        .word-span.wrong-span {
+            background-color: #ffebee;
+            animation: shake 0.3s ease-in-out;
+        }
+
+        /* 間違えた部分を揺らすアニメーション（中学生への視覚的フィードバック） */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+        }
+
         .line-break {
             display: block;
             margin-top: 15px;
@@ -156,7 +187,7 @@
 <body>
 
 <div class="container">
-    <h1>中学生向け 英語長文学習アプリ</h1>
+    <h1>英語長文学習アプリ</h1>
     
     <div id="mode-badge" class="mode-info">
         データを読み込み中...
@@ -175,13 +206,12 @@
 // ==========================================================================
 const SPREADSHEET_GAS_URL = "https://script.google.com/macros/s/AKfycbx1fgY1v0ZToAX7F_vlw02fRml4bQ5VkCe7D5y7AZkJhLX_NOxBclgN7HCPeyKvQL3X/exec";
 
-// アプリ内部で保持する変数
-let allQuestions = [];      // スプレッドシートから取得した全データ
+let allQuestions = [];      
 let currentQuestion = { text: "", translations: "" };
 let wordsArray = [];        
 let correctSlashIndices = []; 
 
-// 1. GAS経由でスプレッドシートからデータを取得
+// 1. GAS経由でデータ取得
 async function loadDataFromSpreadsheet() {
     if (SPREADSHEET_GAS_URL === "ここにデプロイしたウェブアプリのURLを貼り付け") {
         document.getElementById('mode-badge').innerText = "【設定エラー】コード内のSPREADSHEET_GAS_URLに、GASのウェブアプリURLを設定してください。";
@@ -193,7 +223,6 @@ async function loadDataFromSpreadsheet() {
         allQuestions = await response.json();
         
         if (allQuestions.length > 0) {
-            // ホーム画面（選択画面）を表示
             showHomeScreen();
         } else {
             document.getElementById('mode-badge').innerText = "スプレッドシートにデータが見つかりません。";
@@ -204,12 +233,11 @@ async function loadDataFromSpreadsheet() {
     }
 }
 
-// 2. ホーム画面（レベル・カテゴリ選択画面）の表示
+// 2. ホーム画面表示
 function showHomeScreen() {
     document.getElementById('mode-badge').innerText = "【ホーム】学習したいレベルと文法を選んで「スタート」を押そう！";
     document.getElementById('action-btn').style.display = "none";
 
-    // 重複のないレベルとカテゴリのリストを自動作成
     const levels = [...new Set(allQuestions.map(q => q.level).filter(l => l))];
     const categories = [...new Set(allQuestions.map(q => q.category).filter(c => c))];
 
@@ -235,19 +263,15 @@ function showHomeScreen() {
     document.getElementById('main-content').innerHTML = htmlMarkup;
 }
 
-// 選ばれたレッスンを検索して開始
 function startSelectedLesson() {
     const selectedLevel = document.getElementById('level-select').value;
     const selectedCategory = document.getElementById('category-select').value;
-
-    // 条件に一致する問題を1つ探す
     const matchQuestion = allQuestions.find(q => q.level == selectedLevel && q.category == selectedCategory);
 
     if (matchQuestion) {
         currentQuestion.text = String(matchQuestion.text || "");
         currentQuestion.translations = String(matchQuestion.translations || "");
         
-        // 変数をリセットしてフェーズ1へ
         wordsArray = [];
         correctSlashIndices = [];
         initApp();
@@ -256,7 +280,7 @@ function startSelectedLesson() {
     }
 }
 
-// 3. フェーズ1（スラッシュ引き）画面の構築
+// 3. フェーズ1（スラッシュ引き）画面構築
 function initApp() {
     document.getElementById('mode-badge').innerText = "【フェーズ1】正しいと思う区切り（単語の後ろ）をタップしてスラッシュを入れよう！";
     
@@ -266,20 +290,17 @@ function initApp() {
     actionBtn.setAttribute('onclick', 'checkSlashAnswers()');
     actionBtn.style.backgroundColor = "#2cc780";
 
-    // 英文を「/」で区切りごとに分割
     const phrases = currentQuestion.text.split('/').map(p => p.trim()).filter(p => p !== "");
     
     let wordCounter = 0;
     let htmlMarkup = '<div class="text-container">';
 
     phrases.forEach((phrase) => {
-        // ★ポイント：スプレッドシート内の「改行」を一時的な目印に置き換えて、単語分解時に巻き込まないようにする
         const cleanPhrase = phrase.replace(/\n/g, ' [BR] ');
         const words = cleanPhrase.split(' ').filter(w => w !== "");
 
         words.forEach((word, wordIndex) => {
             if (word === '[BR]') {
-                // 改行コードがあれば、単語にせず強制的に改行用のタグを挟む
                 htmlMarkup += '<span class="line-break"></span>';
                 return;
             }
@@ -287,13 +308,12 @@ function initApp() {
             wordsArray.push({
                 text: word,
                 hasUserSlash: false,
-                isCorrectSlashPosition: false
+                isCorrectSlashPosition: false,
+                isAlreadyCorrect: false // すでに正解してロックされているか
             });
 
             htmlMarkup += `<span class="word-span" id="word-${wordCounter}" onclick="toggleSlash(${wordCounter})">${word}</span>`;
             
-            // 改行タグなどを除いた、本当の最後の単語の後ろを正解位置にする
-            // 後続に有効な単語がないかチェック
             const isLastWord = words.slice(wordIndex + 1).filter(w => w !== '[BR]').length === 0;
             if (isLastWord && !wordsArray[wordCounter].isCorrectSlashPosition) {
                 correctSlashIndices.push(wordCounter);
@@ -307,11 +327,16 @@ function initApp() {
     document.getElementById('main-content').innerHTML = htmlMarkup;
 }
 
-// 単語をタップしたときの処理
 function toggleSlash(index) {
+    // すでに正解してロックされている単語はタップさせない
+    if (wordsArray[index].isAlreadyCorrect) return;
+
     const wordElement = document.getElementById(`word-${index}`);
     wordsArray[index].hasUserSlash = !wordsArray[index].hasUserSlash;
     
+    // 一度答え合わせをした後の「間違い表示」をクリアする
+    wordElement.classList.remove('wrong-span');
+
     if (wordsArray[index].hasUserSlash) {
         wordElement.classList.add('has-slash');
     } else {
@@ -319,13 +344,30 @@ function toggleSlash(index) {
     }
 }
 
-// フェーズ1：答え合わせ
+// 🔥 【大幅改良】フェーズ1：スラッシュの細かな答え合わせとやり直し
 function checkSlashAnswers() {
     let isAllCorrect = true;
+    let wrongCount = 0;
 
-    wordsArray.forEach((word) => {
-        if (word.isCorrectSlashPosition !== word.hasUserSlash) {
+    wordsArray.forEach((word, index) => {
+        const wordElement = document.getElementById(`word-${index}`);
+        
+        // 事前にエラー表示クラスをクリア
+        wordElement.classList.remove('wrong-span');
+
+        if (word.isCorrectSlashPosition === word.hasUserSlash) {
+            // 位置が合っている場合
+            if (word.isCorrectSlashPosition) {
+                // 正解のスラッシュを緑にして固定
+                word.isAlreadyCorrect = true;
+                wordElement.classList.remove('has-slash');
+                wordElement.classList.add('correct-slash', 'locked');
+            }
+        } else {
+            // 位置が間違っている場合（入れるべき場所に無い、または不要な場所にある）
             isAllCorrect = false;
+            wrongCount++;
+            wordElement.classList.add('wrong-span'); // 薄赤にして揺らす
         }
     });
 
@@ -333,8 +375,7 @@ function checkSlashAnswers() {
         alert("素晴らしい！全問正解です！直読直解（日本語訳）モードに進みます。");
         startTranslationMode();
     } else {
-        alert("おや？スラッシュの位置が少し違うようです。もう一度確認してみよう！\n（※今回は開発チェック用として、そのまま次のモードに進みます）");
-        startTranslationMode();
+        alert(`おや？スラッシュの位置が違うところが ${wrongCount} 箇所あります。\n赤くなっている部分の周辺を見直して、もう一度挑戦してみよう！`);
     }
 }
 
@@ -347,7 +388,6 @@ function startTranslationMode() {
     btn.setAttribute('onclick', 'finishLearning()');
     btn.style.backgroundColor = "#b0bec5"; 
 
-    // 英語と日本語を「/」で分解
     const englishPhrases = currentQuestion.text.split('/').map(p => p.trim()).filter(p => p !== "");
     const japanesePhrases = currentQuestion.translations.split('/').map(p => p.trim()).filter(p => p !== "");
 
@@ -355,7 +395,6 @@ function startTranslationMode() {
     
     englishPhrases.forEach((eng, index) => {
         const jpn = japanesePhrases[index] || "（日本語訳が正しく登録されていません）";
-        // ★ポイント：直読直解モードの英文内の改行も <br> タグに変換して反映する
         const formattedEng = eng.replace(/\n/g, '<br>');
         
         htmlMarkup += `
@@ -387,7 +426,6 @@ function checkAllPhrasesCleared() {
     }
 }
 
-// 終了処理（ホーム画面に戻る）
 function finishLearning() {
     const total = document.querySelectorAll('.phrase-block').length;
     const cleared = document.querySelectorAll('.phrase-block.cleared').length;
@@ -398,7 +436,7 @@ function finishLearning() {
     }
     
     alert("お疲れ様でした！ホーム画面に戻ります。");
-    showHomeScreen(); // リロードせず、そのままホーム画面の表示関数を呼ぶ
+    showHomeScreen(); 
 }
 
 window.onload = loadDataFromSpreadsheet;
