@@ -211,6 +211,10 @@ let currentQuestion = { text: "", translations: "" };
 let wordsArray = [];        
 let correctSlashIndices = []; 
 
+// アプリ側で「塊」を切り分けるための内部データ構造
+let questionPhrases = []; 
+let translationPhrases = [];
+
 async function loadDataFromSpreadsheet() {
     if (SPREADSHEET_GAS_URL === "ここにデプロイしたウェブアプリのURLを貼り付け") {
         document.getElementById('mode-badge').innerText = "【設定エラー】コード内のSPREADSHEET_GAS_URLに、GASのウェブアプリURLを設定してください。";
@@ -273,10 +277,44 @@ function startSelectedLesson() {
         
         wordsArray = [];
         correctSlashIndices = [];
+        
+        // 🛠️ データ解析のコア部分：スラッシュだけでなく「改行」でも配列を分割する
+        parseQuestionsAndTranslations();
+        
         initApp();
     } else {
         alert("該当する長文が見つかりませんでした。別の組み合わせを選んでください。");
     }
+}
+
+// 🛠️ 新設：スプレッドシートのテキストを、スラッシュと改行の両方で正しくパーツに切り分ける処理
+function parseQuestionsAndTranslations() {
+    questionPhrases = [];
+    translationPhrases = [];
+
+    // 1. 英文の解析：改行(\n)で一旦バラバラにする
+    const rawTextLines = currentQuestion.text.split('\n');
+    rawTextLines.forEach((line) => {
+        // 行ごとに「/」で細分化する。文末に「/」がなくても、この行の終わりが自動的に1つのパーツの境界になる
+        const lineParts = line.split('/').map(p => p.trim()).filter(p => p !== "");
+        lineParts.forEach((part, index) => {
+            // 行の最後（文末）のパーツなら、後ろに改行マーク用の印をつけておく
+            const isEndOfLine = (index === lineParts.length - 1);
+            questionPhrases.push({
+                text: part,
+                appendLineBreak: isEndOfLine
+            });
+        });
+    });
+
+    // 2. 日本語訳の解析：同様に改行と「/」の両方で切り分ける
+    const rawTranslationLines = currentQuestion.translations.split('\n');
+    rawTranslationLines.forEach((line) => {
+        const lineParts = line.split('/').map(p => p.trim()).filter(p => p !== "");
+        lineParts.forEach((part) => {
+            translationPhrases.push(part);
+        });
+    });
 }
 
 function confirmGoHome() {
@@ -285,7 +323,7 @@ function confirmGoHome() {
     }
 }
 
-// 🛠️ 画面構築（文末スラッシュ無しの改行でも、単語がくっつかないように修正）
+// 🛠️ 画面構築（改行によって分割されたデータをベースに単語を並べる）
 function initApp() {
     document.getElementById('mode-badge').innerText = "【フェーズ1】正しいと思う区切り（単語の後ろ）をタップしてスラッシュを入れよう！";
     document.getElementById('nav-home').style.display = "inline-block";
@@ -296,23 +334,13 @@ function initApp() {
     actionBtn.setAttribute('onclick', 'checkSlashAnswers()');
     actionBtn.style.backgroundColor = "#2cc780";
 
-    // ★ポイント: 単語がくっつくのを防ぐため、改行コードの前後をスペース付きの目印に置換する
-    const textWithBRLandmarks = currentQuestion.text.replace(/\n/g, ' [BR] ');
-    const phrases = textWithBRLandmarks.split('/').map(p => p.trim()).filter(p => p !== "");
-    
     let wordCounter = 0;
     let htmlMarkup = '<div class="text-container">';
 
-    phrases.forEach((phrase) => {
-        // スペースで細かく単語分解する
-        const words = phrase.split(' ').filter(w => w !== "");
+    questionPhrases.forEach((phraseObj) => {
+        const words = phraseObj.text.split(' ').filter(w => w !== "");
 
         words.forEach((word, wordIndex) => {
-            if (word === '[BR]') {
-                htmlMarkup += '<span class="line-break"></span>';
-                return;
-            }
-
             wordsArray.push({
                 text: word,
                 hasUserSlash: false,
@@ -322,14 +350,18 @@ function initApp() {
 
             htmlMarkup += `<span class="word-span" id="word-${wordCounter}" onclick="toggleSlash(${wordCounter})">${word}</span>`;
             
-            // 後続に有効な単語があるかチェック（改行マークは無視する）
-            const isLastWord = words.slice(wordIndex + 1).filter(w => w !== '[BR]').length === 0;
-            if (isLastWord && !wordsArray[wordCounter].isCorrectSlashPosition) {
+            // 各パーツの最後の単語の後ろを正解スラッシュ位置にする
+            if (wordIndex === words.length - 1) {
                 correctSlashIndices.push(wordCounter);
                 wordsArray[wordCounter].isCorrectSlashPosition = true;
             }
             wordCounter++;
         });
+
+        // スプレッドシート上で改行されていた部分なら、画面上で強制改行を入れる
+        if (phraseObj.appendLineBreak) {
+            htmlMarkup += '<span class="line-break"></span>';
+        }
     });
     
     htmlMarkup += '</div>';
@@ -379,10 +411,11 @@ function checkSlashAnswers() {
         alert("素晴らしい！全問正解です！直読直解（日本語訳）モードに進みます。");
         startTranslationMode();
     } else {
-        alert(`おや？スラッシュの位置が違うところが ${wrongCount} 箇所あります。\n見見直して、もう一度挑戦してみよう！`);
+        alert(`おや？スラッシュの位置が違うところが ${wrongCount} 箇所あります。\n見直して、もう一度挑戦してみよう！`);
     }
 }
 
+// 🛠️ フェーズ2（直読直解モード）：改行位置でしっかりとブロックを分ける
 function startTranslationMode() {
     document.getElementById('mode-badge').innerText = "【フェーズ2】英文をタップして、頭の中の日本語訳と答え合わせをしよう！";
     
@@ -391,24 +424,14 @@ function startTranslationMode() {
     btn.setAttribute('onclick', 'finishLearning()');
     btn.style.backgroundColor = "#b0bec5"; 
 
-    // 翻訳モード側でもくっつきを防止
-    const textWithBRLandmarks = currentQuestion.text.replace(/\n/g, ' [BR] ');
-    const englishPhrases = textWithBRLandmarks.split('/').map(p => p.trim()).filter(p => p !== "");
-    const japanesePhrases = currentQuestion.translations.split('/').map(p => p.trim()).filter(p => p !== "");
-
     let htmlMarkup = '<div class="translation-mode-container">';
     
-    englishPhrases.forEach((eng, index) => {
-        const jpn = japanesePhrases[index] || "（日本語訳が正しく登録されていません）";
-        
-        // [BR] マークをブラウザ用の改行タグ <br> に変換（前後の余計なスペースも綺麗にします）
-        let formattedEng = eng.replace(/\[BR\]/g, '<br>');
-        // <br>の直前に余計なスペースが残る場合は微調整
-        formattedEng = formattedEng.replace(/\s*<br>\s*/g, '<br>');
+    questionPhrases.forEach((phraseObj, index) => {
+        const jpn = translationPhrases[index] || "（日本語訳が正しく登録されていません）";
         
         htmlMarkup += `
             <div class="phrase-block" id="phrase-${index}" onclick="revealTranslation(${index})">
-                <div class="phrase-english">${formattedEng}</div>
+                <div class="phrase-english">${phraseObj.text}</div>
                 <div class="phrase-translation">${jpn}</div>
             </div>
         `;
