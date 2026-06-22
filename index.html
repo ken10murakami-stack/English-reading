@@ -163,7 +163,7 @@
         button.show-ans-btn:hover {
             background-color: #039be5;
         }
-        /* 正解非表示ボタン（オレンジに変えて目立たせます） */
+        /* 正解非表示ボタン（オレンジ） */
         button.hide-ans-btn {
             background-color: #ffb74d;
         }
@@ -240,8 +240,6 @@ let translationPhrases = [];
 let historicalClearedSet = new Set();
 
 let isWordsArrayInitialized = false;
-
-// 🔥 正解表示モードがONかOFFかを追跡する変数
 let isAnswerRevealModeOn = false;
 
 async function loadDataFromSpreadsheet() {
@@ -308,7 +306,7 @@ function startSelectedLesson() {
         correctSlashIndices = [];
         historicalClearedSet.clear();
         isWordsArrayInitialized = false; 
-        isAnswerRevealModeOn = false; // 初期化
+        isAnswerRevealModeOn = false; 
         
         parseQuestionsAndTranslations();
         showSlashPhase(); 
@@ -348,14 +346,15 @@ function confirmGoHome() {
     }
 }
 
-// フェーズ1（スラッシュ引き画面）の表示処理
+// フェーズ1（スラッシュ引き画面）の表示・切り替え処理
 function showSlashPhase() {
     document.getElementById('mode-badge').innerText = "【フェーズ1】正しいと思う区切り（単語の後ろ）をタップしてスラッシュを入れよう！";
     document.getElementById('nav-home').style.display = "inline-block";
 
-    // 🛠️ ボタンの出し分けロジック（ON/OFFの状態によってボタンのテキストと色を変える）
+    // ボタン表示をフェーズ1用に更新
     updateSlashButtons();
 
+    // 初回起動時のみデータリストを生成、2回目以降は再描画のみ実行
     if (!isWordsArrayInitialized) {
         let wordCounter = 0;
         let htmlMarkup = '<div class="text-container">';
@@ -369,7 +368,7 @@ function showSlashPhase() {
                     hasUserSlash: false,
                     isCorrectSlashPosition: false,
                     isAlreadyCorrect: false,
-                    backupUserSlash: false // トグル時に元の自分の解答を避難させておく変数
+                    backupUserSlash: false 
                 });
 
                 htmlMarkup += `<span class="word-span" id="word-${wordCounter}" onclick="toggleSlash(${wordCounter})">${word}</span>`;
@@ -390,11 +389,41 @@ function showSlashPhase() {
         document.getElementById('main-content').innerHTML = htmlMarkup;
         isWordsArrayInitialized = true;
     } else {
-        applyWordStatesToDOM();
+        // 🛠️ 修正ポイント：フェーズ2で上書きされたHTML領域を確実にスラッシュ引きの画面に戻す処理を追加
+        redrawSlashHTML();
     }
 }
 
-// ボタン表示を更新する関数
+// 🛠️ 再描画関数：wordsArrayの保存データをもとに、現在のスラッシュ線の見た目を完全復元する
+function redrawSlashHTML() {
+    let wordCounter = 0;
+    let htmlMarkup = '<div class="text-container">';
+
+    questionPhrases.forEach((phraseObj) => {
+        const words = phraseObj.text.split(' ').filter(w => w !== "");
+        words.forEach((word) => {
+            const state = wordsArray[wordCounter];
+            let classList = "word-span";
+            
+            // 現在のトグル状態や正解状況に応じてクラスを自動付与
+            if (isAnswerRevealModeOn) {
+                if (state.isCorrectSlashPosition) classList += " correct-slash locked";
+            } else {
+                if (state.isAlreadyCorrect) classList += " correct-slash locked";
+                else if (state.hasUserSlash) classList += " has-slash";
+            }
+
+            htmlMarkup += `<span class="${classList}" id="word-${wordCounter}" onclick="toggleSlash(${wordCounter})">${word}</span>`;
+            wordCounter++;
+        });
+        if (phraseObj.appendLineBreak) {
+            htmlMarkup += '<span class="line-break"></span>';
+        }
+    });
+    htmlMarkup += '</div>';
+    document.getElementById('main-content').innerHTML = htmlMarkup;
+}
+
 function updateSlashButtons() {
     const btnArea = document.getElementById('btn-area');
     if (isAnswerRevealModeOn) {
@@ -412,30 +441,7 @@ function updateSlashButtons() {
     }
 }
 
-// 記憶データに基づいて画面（DOM）のクラスを再適用する関数
-function applyWordStatesToDOM() {
-    wordsArray.forEach((word, index) => {
-        const wordElement = document.getElementById(`word-${index}`);
-        wordElement.classList.remove('has-slash', 'correct-slash', 'wrong-slash', 'locked');
-        
-        if (isAnswerRevealModeOn) {
-            // 正解表示モード中の見た目
-            if (word.isCorrectSlashPosition) {
-                wordElement.classList.add('correct-slash', 'locked');
-            }
-        } else {
-            // 通常モード中の見た目
-            if (word.isAlreadyCorrect) {
-                wordElement.classList.add('correct-slash', 'locked');
-            } else if (word.hasUserSlash) {
-                wordElement.classList.add('has-slash');
-            }
-        }
-    });
-}
-
 function toggleSlash(index) {
-    // 正解表示モード中、またはすでに答え合わせで正解している単語はタップさせない
     if (isAnswerRevealModeOn || wordsArray[index].isAlreadyCorrect) return;
 
     const wordElement = document.getElementById(`word-${index}`);
@@ -484,29 +490,23 @@ function checkSlashAnswers() {
     }
 }
 
-// 🛠️ 【改良】正解の表示・非表示を切り替えるトグル関数
 function toggleCorrectSlashes() {
-    // モードを反転
     isAnswerRevealModeOn = !isAnswerRevealModeOn;
 
     wordsArray.forEach((word) => {
         if (isAnswerRevealModeOn) {
-            // 【ONにするとき】現在の学習者の入力を一時バックアップ
             word.backupUserSlash = word.hasUserSlash;
-            // 一時的に正解データへと書き換える
             if (word.isCorrectSlashPosition) {
                 word.hasUserSlash = true;
             } else {
                 word.hasUserSlash = false;
             }
         } else {
-            // 【OFFにするとき】バックアップから元の状態を復元する
             word.hasUserSlash = word.backupUserSlash;
         }
     });
 
-    // 画面の見た目（クラス）と、ボタンエリアの表示を更新
-    applyWordStatesToDOM();
+    redrawSlashHTML(); // 見た目をリフレッシュ
     updateSlashButtons();
 }
 
