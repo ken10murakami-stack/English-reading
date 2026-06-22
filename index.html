@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>中学生向け 英語長文学習アプリ</title>
+    <title>英語長文学習アプリ</title>
     <style>
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
@@ -129,23 +129,48 @@
         }
         .btn-container {
             text-align: center;
-            margin-top: 20px;
+            margin-top: 25px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
         }
         button {
             background-color: #2cc780;
             color: white;
             border: none;
-            padding: 12px 30px;
-            font-size: 1rem;
+            padding: 12px 25px;
+            font-size: 0.95rem;
             font-weight: bold;
             border-radius: 25px;
             cursor: pointer;
             box-shadow: 0 3px 6px rgba(0,0,0,0.1);
-            transition: background-color 0.2s;
+            transition: all 0.2s;
         }
         button:hover {
             background-color: #21a769;
         }
+        button.sub-btn {
+            background-color: #90a4ae;
+        }
+        button.sub-btn:hover {
+            background-color: #78909c;
+        }
+        /* 正解表示ボタン（水色） */
+        button.show-ans-btn {
+            background-color: #29b6f6;
+        }
+        button.show-ans-btn:hover {
+            background-color: #039be5;
+        }
+        /* 正解非表示ボタン（オレンジに変えて目立たせます） */
+        button.hide-ans-btn {
+            background-color: #ffb74d;
+        }
+        button.hide-ans-btn:hover {
+            background-color: #f57c00;
+        }
+        
         /* フェーズ2：直読直解ブロック */
         .phrase-block {
             margin-bottom: 25px;
@@ -170,15 +195,14 @@
             font-size: 1.1rem;
             color: #43a047;
             font-weight: bold;
-            display: none; /* 初期は非表示 */
+            display: none;
         }
-        /* タップして確認済み（日本語表示中）のスタイル */
         .phrase-block.cleared {
             border-left-color: #43a047;
             background-color: #e8f5e9;
         }
         .phrase-block.cleared .phrase-translation {
-            display: block; /* クラスが付与されたら表示 */
+            display: block;
         }
     </style>
 </head>
@@ -188,7 +212,7 @@
     <button id="nav-home" class="nav-home-btn" onclick="confirmGoHome()" style="display:none;">ホームへ戻る</button>
 
     <div class="header-area">
-        <h1>中学生向け 英語長文学習アプリ</h1>
+        <h1>英語長文学習アプリ</h1>
     </div>
     
     <div id="mode-badge" class="mode-info">
@@ -197,9 +221,7 @@
 
     <div id="main-content"></div>
 
-    <div class="btn-container">
-        <button id="action-btn" onclick="checkSlashAnswers()" style="display:none;">スラッシュの答え合わせをする</button>
-    </div>
+    <div id="btn-area" class="btn-container"></div>
 </div>
 
 <script>
@@ -215,9 +237,12 @@ let correctSlashIndices = [];
 
 let questionPhrases = []; 
 let translationPhrases = [];
-
-// 一度でもタップされたことのあるブロックのIDを記録するセット（全終了判定用）
 let historicalClearedSet = new Set();
+
+let isWordsArrayInitialized = false;
+
+// 🔥 正解表示モードがONかOFFかを追跡する変数
+let isAnswerRevealModeOn = false;
 
 async function loadDataFromSpreadsheet() {
     if (SPREADSHEET_GAS_URL === "ここにデプロイしたウェブアプリのURLを貼り付け") {
@@ -242,7 +267,7 @@ async function loadDataFromSpreadsheet() {
 
 function showHomeScreen() {
     document.getElementById('mode-badge').innerText = "【ホーム】学習したいレベルと文法を選んで「スタート」を押そう！";
-    document.getElementById('action-btn').style.display = "none";
+    document.getElementById('btn-area').innerHTML = "";
     document.getElementById('nav-home').style.display = "none";
 
     const levels = [...new Set(allQuestions.map(q => q.level).filter(l => l))];
@@ -281,10 +306,12 @@ function startSelectedLesson() {
         
         wordsArray = [];
         correctSlashIndices = [];
-        historicalClearedSet.clear(); // 履歴をリセット
+        historicalClearedSet.clear();
+        isWordsArrayInitialized = false; 
+        isAnswerRevealModeOn = false; // 初期化
         
         parseQuestionsAndTranslations();
-        initApp();
+        showSlashPhase(); 
     } else {
         alert("該当する長文が見つかりませんでした。別の組み合わせを選んでください。");
     }
@@ -321,51 +348,95 @@ function confirmGoHome() {
     }
 }
 
-function initApp() {
+// フェーズ1（スラッシュ引き画面）の表示処理
+function showSlashPhase() {
     document.getElementById('mode-badge').innerText = "【フェーズ1】正しいと思う区切り（単語の後ろ）をタップしてスラッシュを入れよう！";
     document.getElementById('nav-home').style.display = "inline-block";
 
-    const actionBtn = document.getElementById('action-btn');
-    actionBtn.style.display = "inline-block";
-    actionBtn.innerText = "スラッシュの答え合わせをする";
-    actionBtn.setAttribute('onclick', 'checkSlashAnswers()');
-    actionBtn.style.backgroundColor = "#2cc780";
+    // 🛠️ ボタンの出し分けロジック（ON/OFFの状態によってボタンのテキストと色を変える）
+    updateSlashButtons();
 
-    let wordCounter = 0;
-    let htmlMarkup = '<div class="text-container">';
+    if (!isWordsArrayInitialized) {
+        let wordCounter = 0;
+        let htmlMarkup = '<div class="text-container">';
 
-    questionPhrases.forEach((phraseObj) => {
-        const words = phraseObj.text.split(' ').filter(w => w !== "");
+        questionPhrases.forEach((phraseObj) => {
+            const words = phraseObj.text.split(' ').filter(w => w !== "");
 
-        words.forEach((word, wordIndex) => {
-            wordsArray.push({
-                text: word,
-                hasUserSlash: false,
-                isCorrectSlashPosition: false,
-                isAlreadyCorrect: false 
+            words.forEach((word, wordIndex) => {
+                wordsArray.push({
+                    text: word,
+                    hasUserSlash: false,
+                    isCorrectSlashPosition: false,
+                    isAlreadyCorrect: false,
+                    backupUserSlash: false // トグル時に元の自分の解答を避難させておく変数
+                });
+
+                htmlMarkup += `<span class="word-span" id="word-${wordCounter}" onclick="toggleSlash(${wordCounter})">${word}</span>`;
+                
+                const isLastWord = words.slice(wordIndex + 1).filter(w => w !== '[BR]').length === 0;
+                if (isLastWord && !wordsArray[wordCounter].isCorrectSlashPosition) {
+                    correctSlashIndices.push(wordCounter);
+                    wordsArray[wordCounter].isCorrectSlashPosition = true;
+                }
+                wordCounter++;
             });
 
-            htmlMarkup += `<span class="word-span" id="word-${wordCounter}" onclick="toggleSlash(${wordCounter})">${word}</span>`;
-            
-            const isLastWord = words.slice(wordIndex + 1).filter(w => w !== '[BR]').length === 0;
-            if (isLastWord && !wordsArray[wordCounter].isCorrectSlashPosition) {
-                correctSlashIndices.push(wordCounter);
-                wordsArray[wordCounter].isCorrectSlashPosition = true;
+            if (phraseObj.appendLineBreak) {
+                htmlMarkup += '<span class="line-break"></span>';
             }
-            wordCounter++;
         });
+        htmlMarkup += '</div>';
+        document.getElementById('main-content').innerHTML = htmlMarkup;
+        isWordsArrayInitialized = true;
+    } else {
+        applyWordStatesToDOM();
+    }
+}
 
-        if (phraseObj.appendLineBreak) {
-            htmlMarkup += '<span class="line-break"></span>';
+// ボタン表示を更新する関数
+function updateSlashButtons() {
+    const btnArea = document.getElementById('btn-area');
+    if (isAnswerRevealModeOn) {
+        btnArea.innerHTML = `
+            <button id="check-btn" onclick="checkSlashAnswers()" disabled style="background-color: #b0bec5; cursor: default;">スラッシュの答え合わせをする</button>
+            <button class="hide-ans-btn" onclick="toggleCorrectSlashes()">正解を隠す（自分の解答に戻る）</button>
+            <button class="sub-btn" onclick="startTranslationMode()">日本語訳を見て確認する ＞</button>
+        `;
+    } else {
+        btnArea.innerHTML = `
+            <button id="check-btn" onclick="checkSlashAnswers()">スラッシュの答え合わせをする</button>
+            <button class="show-ans-btn" onclick="toggleCorrectSlashes()">正解を表示する</button>
+            <button class="sub-btn" onclick="startTranslationMode()">日本語訳を見て確認する ＞</button>
+        `;
+    }
+}
+
+// 記憶データに基づいて画面（DOM）のクラスを再適用する関数
+function applyWordStatesToDOM() {
+    wordsArray.forEach((word, index) => {
+        const wordElement = document.getElementById(`word-${index}`);
+        wordElement.classList.remove('has-slash', 'correct-slash', 'wrong-slash', 'locked');
+        
+        if (isAnswerRevealModeOn) {
+            // 正解表示モード中の見た目
+            if (word.isCorrectSlashPosition) {
+                wordElement.classList.add('correct-slash', 'locked');
+            }
+        } else {
+            // 通常モード中の見た目
+            if (word.isAlreadyCorrect) {
+                wordElement.classList.add('correct-slash', 'locked');
+            } else if (word.hasUserSlash) {
+                wordElement.classList.add('has-slash');
+            }
         }
     });
-    
-    htmlMarkup += '</div>';
-    document.getElementById('main-content').innerHTML = htmlMarkup;
 }
 
 function toggleSlash(index) {
-    if (wordsArray[index].isAlreadyCorrect) return;
+    // 正解表示モード中、またはすでに答え合わせで正解している単語はタップさせない
+    if (isAnswerRevealModeOn || wordsArray[index].isAlreadyCorrect) return;
 
     const wordElement = document.getElementById(`word-${index}`);
     wordsArray[index].hasUserSlash = !wordsArray[index].hasUserSlash;
@@ -379,6 +450,8 @@ function toggleSlash(index) {
 }
 
 function checkSlashAnswers() {
+    if (isAnswerRevealModeOn) return;
+
     let isAllCorrect = true;
     let wrongCount = 0;
 
@@ -407,23 +480,49 @@ function checkSlashAnswers() {
         alert("素晴らしい！全問正解です！直読直解（日本語訳）モードに進みます。");
         startTranslationMode();
     } else {
-        alert(`おや？スラッシュの位置が違うところが ${wrongCount} 箇所あります。\n見直して、もう一度挑戦してみよう！`);
+        alert(`おや？スラッシュの位置が違うところが ${wrongCount} 箇所あります。\n見直してもう一度挑戦するか、「正解を表示する」ボタンで確認してみよう！`);
     }
 }
 
+// 🛠️ 【改良】正解の表示・非表示を切り替えるトグル関数
+function toggleCorrectSlashes() {
+    // モードを反転
+    isAnswerRevealModeOn = !isAnswerRevealModeOn;
+
+    wordsArray.forEach((word) => {
+        if (isAnswerRevealModeOn) {
+            // 【ONにするとき】現在の学習者の入力を一時バックアップ
+            word.backupUserSlash = word.hasUserSlash;
+            // 一時的に正解データへと書き換える
+            if (word.isCorrectSlashPosition) {
+                word.hasUserSlash = true;
+            } else {
+                word.hasUserSlash = false;
+            }
+        } else {
+            // 【OFFにするとき】バックアップから元の状態を復元する
+            word.hasUserSlash = word.backupUserSlash;
+        }
+    });
+
+    // 画面の見た目（クラス）と、ボタンエリアの表示を更新
+    applyWordStatesToDOM();
+    updateSlashButtons();
+}
+
+// フェーズ2（直読直解モード）
 function startTranslationMode() {
     document.getElementById('mode-badge').innerText = "【フェーズ2】英文をタップして日本語訳を確認しよう！（もう一度タップすると隠せます）";
     
-    const btn = document.getElementById('action-btn');
-    btn.innerText = "学習を終了する";
-    btn.setAttribute('onclick', 'finishLearning()');
-    btn.style.backgroundColor = "#b0bec5"; 
+    document.getElementById('btn-area').innerHTML = `
+        <button class="sub-btn" onclick="showSlashPhase()">＜ スラッシュを引き直す</button>
+        <button id="finish-btn" onclick="finishLearning()" style="background-color: #b0bec5;">学習を終了する</button>
+    `;
 
     let htmlMarkup = '<div class="translation-mode-container">';
     
     questionPhrases.forEach((phraseObj, index) => {
         const jpn = translationPhrases[index] || "（日本語訳が正しく登録されていません）";
-        
         htmlMarkup += `
             <div class="phrase-block" id="phrase-${index}" onclick="toggleTranslation(${index})">
                 <div class="phrase-english">${phraseObj.text}</div>
@@ -434,38 +533,35 @@ function startTranslationMode() {
 
     htmlMarkup += '</div>';
     document.getElementById('main-content').innerHTML = htmlMarkup;
-}
-
-// 🛠️ 【改良】日本語訳の表示・非表示を切り替える（トグル）関数
-function toggleTranslation(index) {
-    const block = document.getElementById(`phrase-${index}`);
     
-    // すでに cleared クラスを持っていれば消し、なければ足す（表示・非表示の切り替え）
-    const isShowing = block.classList.toggle('cleared');
-    
-    if (isShowing) {
-        // 一度でも開いた（確認した）履歴として保存
-        historicalClearedSet.add(index);
-    }
-    
-    // 全部のパーツを「最低一度はタップして確認したか」を判定する
     checkAllPhrasesCleared();
 }
 
-// 🛠️ 【調整】全タップ終了の判定（現在隠されていても、一度でも確認していればOKとする仕様）
+function toggleTranslation(index) {
+    const block = document.getElementById(`phrase-${index}`);
+    const isShowing = block.classList.toggle('cleared');
+    
+    if (isShowing) {
+        historicalClearedSet.add(index);
+    }
+    checkAllPhrasesCleared();
+}
+
 function checkAllPhrasesCleared() {
+    const finishBtn = document.getElementById('finish-btn');
+    if (!finishBtn) return;
+
     const total = document.querySelectorAll('.phrase-block').length;
-    const clearedCount = historicalClearedSet.size; // 履歴の数をカウント
+    const clearedCount = historicalClearedSet.size; 
     
     if (total === clearedCount) {
-        const btn = document.getElementById('action-btn');
-        btn.innerText = "すべての答え合わせが完了！終了する";
-        btn.style.backgroundColor = "#1e88e5";
+        finishBtn.innerText = "すべての答え合わせが完了！終了する";
+        finishBtn.style.backgroundColor = "#1e88e5";
     }
 }
 
 function finishLearning() {
-    const total = document.querySelectorAll('.phrase-block').length;
+    const total = questionPhrases.length;
     const clearedCount = historicalClearedSet.size;
 
     if (total !== clearedCount) {
